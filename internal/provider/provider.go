@@ -196,5 +196,6 @@ func (p *qnapProvider) DataSources(_ context.Context) []func() datasource.DataSo
 func (p *qnapProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewContainerResource,
+		NewAppResource,
 	}
 }

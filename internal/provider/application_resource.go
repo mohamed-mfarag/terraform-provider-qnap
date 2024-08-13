@@ -2,16 +2,18 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/qnap-client-lib"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"gopkg.in/yaml.v2"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -20,10 +22,60 @@ var (
 	_ resource.ResourceWithConfigure = &appResource{}
 )
 
+type ComposeFile struct {
+	Version  string             `yaml:"version"`
+	Services map[string]Service `yaml:"services"`
+	Volumes  map[string]Volume  `yaml:"volumes,omitempty"`
+	Networks map[string]Network `yaml:"networks,omitempty"`
+}
+
+type Service struct {
+	Image       string            `yaml:"image,omitempty"`
+	Build       BuildConfig       `yaml:"build,omitempty"`
+	Command     string            `yaml:"command,omitempty"`
+	Ports       []string          `yaml:"ports,omitempty"`
+	Environment map[string]string `yaml:"environment,omitempty"`
+	Volumes     []string          `yaml:"volumes,omitempty"`
+	Networks    []string          `yaml:"networks,omitempty"`
+	DependsOn   []string          `yaml:"depends_on,omitempty"`
+	Restart     string            `yaml:"restart,omitempty"`
+}
+
+type BuildConfig struct {
+	Context    string            `yaml:"context,omitempty"`
+	Dockerfile string            `yaml:"dockerfile,omitempty"`
+	Args       map[string]string `yaml:"args,omitempty"`
+}
+
+type Volume struct {
+	Driver     string            `yaml:"driver,omitempty"`
+	DriverOpts map[string]string `yaml:"driver_opts,omitempty"`
+}
+
+type Network struct {
+	Driver     string            `yaml:"driver,omitempty"`
+	DriverOpts map[string]string `yaml:"driver_opts,omitempty"`
+	External   bool              `yaml:"external,omitempty"`
+}
+
 type AppSpecModel struct {
+	LastUpdated       basetypes.StringValue `tfsdk:"last_updated"`
+	Name              basetypes.StringValue `tfsdk:"name"`
+	Yml               basetypes.StringValue `tfsdk:"yml"`
+	DefaultURL        basetypes.ObjectValue `tfsdk:"default_url"`
+	Containers        basetypes.ListValue   `tfsdk:"containers"`
+	CPULimit          basetypes.Int32Value  `tfsdk:"cpu_limit"`
+	MemLimit          basetypes.Int32Value  `tfsdk:"mem_limit"`
+	MemReservation    basetypes.Int32Value  `tfsdk:"mem_reservation"`
+	RemoveAnonVolumes basetypes.BoolValue   `tfsdk:"removeanonvolumes"`
+}
+type ContainersModel struct {
 	ID   basetypes.StringValue `tfsdk:"id"`
-	Type basetypes.StringValue `tfsdk:"type"`
 	Name basetypes.StringValue `tfsdk:"name"`
+}
+type DefaultURLModel struct {
+	Port    basetypes.Int32Value  `tfsdk:"port"`
+	Service basetypes.StringValue `tfsdk:"service"`
 }
 
 // appResource is the resource implementation.
@@ -45,182 +97,54 @@ func (r *appResource) Metadata(_ context.Context, req resource.MetadataRequest, 
 func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"last_updated": schema.StringAttribute{
-				Computed: true,
-			},
-			"removeanonapps": schema.BoolAttribute{
-				Required: true,
-			},
-			"id": schema.StringAttribute{
-				Computed: true,
-			},
-			"type": schema.StringAttribute{
-				Required: true,
-			},
 			"name": schema.StringAttribute{
 				Required: true,
 			},
-			"image": schema.StringAttribute{
+			"yml": schema.StringAttribute{
 				Required: true,
 			},
-			"portbindings": schema.ListNestedAttribute{
-				Optional: true,
+			"removeanonvolumes": schema.BoolAttribute{
+				Required: true,
+			},
+			"containers": schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"host": schema.Int32Attribute{
-							Optional: true,
-							Computed: true,
-						},
-						"app": schema.Int32Attribute{
-							Optional: true,
-							Computed: true,
-						},
-						"protocol": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
-						},
-						"hostip": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
-						},
-						"appip": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
-						},
-					},
-				},
-			},
-			"restartpolicy": schema.SingleNestedAttribute{
-				Optional: true,
-				Computed: true,
-				Attributes: map[string]schema.Attribute{
-					"name": schema.StringAttribute{
-						Optional: true,
-						Computed: true,
-					},
-					"maximumretrycount": schema.Int32Attribute{
-						Optional: true,
-						Computed: true,
-					},
-				},
-			},
-			"autoremove": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
-			},
-			"cmd": schema.ListAttribute{
-				ElementType: types.StringType,
-				Optional:    true,
-				Computed:    true,
-			},
-			"entrypoint": schema.ListAttribute{
-				ElementType: types.StringType,
-				Optional:    true,
-				Computed:    true,
-			},
-			"tty": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
-			},
-			"openstdin": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
-			},
-			"network": schema.StringAttribute{
-				Required: true,
-			},
-			"networktype": schema.StringAttribute{
-				Required: true,
-			},
-			"hostname": schema.StringAttribute{
-				Optional: true,
-				Computed: true,
-			},
-			"dns": schema.ListAttribute{
-				ElementType: types.StringType,
-				Optional:    true,
-				Computed:    true,
-			},
-			"env": schema.MapAttribute{
-				ElementType: types.StringType,
-				Optional:    true,
-				Computed:    true,
-			},
-			"labels": schema.MapAttribute{
-				ElementType: types.StringType,
-				Optional:    true,
-				Computed:    true,
-			},
-			"apps": schema.ListNestedAttribute{
-				Optional: true,
-				Computed: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"type": schema.StringAttribute{
-							Optional: true,
+						"id": schema.StringAttribute{
 							Computed: true,
 						},
 						"name": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
-						},
-						"app": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
-						},
-						"source": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
-						},
-						"destination": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
-						},
-						"permission": schema.StringAttribute{
-							Optional: true,
 							Computed: true,
 						},
 					},
 				},
 			},
-			"runtime": schema.StringAttribute{
+			"default_url": schema.SingleNestedAttribute{
 				Optional: true,
-				Computed: true,
-			},
-			"privileged": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
-			},
-			"devices": schema.ListNestedAttribute{
-				Optional: true,
-				Computed: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"name": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
-						},
-						"permission": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
-						},
-					},
-				},
-			},
-			"cpupin": schema.SingleNestedAttribute{
-				Optional: true,
-				Computed: true,
 				Attributes: map[string]schema.Attribute{
-					"cpuids": schema.StringAttribute{
+					"port": schema.Int32Attribute{
 						Optional: true,
-						Computed: true,
 					},
-					"type": schema.StringAttribute{
+					"service": schema.StringAttribute{
 						Optional: true,
-						Computed: true,
 					},
 				},
+			},
+			"cpu_limit": schema.Int32Attribute{
+				Optional: true,
+				Computed: true,
+			},
+			"mem_limit": schema.Int32Attribute{
+				Optional: true,
+				Computed: true,
+			},
+			"mem_reservation": schema.Int32Attribute{
+				Optional: true,
+				Computed: true,
+			},
+			"last_updated": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
 			},
 		},
 	}
@@ -236,176 +160,45 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		return
 	}
 
-	newApp := qnap.NewAppSpec{
-		Type:        string(plan.Type.ValueString()),
-		Name:        string(plan.Name.ValueString()),
-		Image:       string(plan.Image.ValueString()),
-		AutoRemove:  bool(plan.AutoRemove.ValueBool()),
-		Tty:         bool(plan.Tty.ValueBool()),
-		OpenStdin:   bool(plan.OpenStdin.ValueBool()),
-		Network:     string(plan.Network.ValueString()),
-		NetworkType: string(plan.NetworkType.ValueString()),
-		Hostname:    string(plan.Hostname.ValueString()),
-		Runtime:     string(plan.Runtime.ValueString()),
-		Privileged:  bool(plan.Privileged.ValueBool()),
-	}
-	// Safely iterate over the devices
-	if !plan.Devices.IsNull() && !plan.Devices.IsUnknown() {
-		var planDevices []Devices
-		diags := plan.Devices.ElementsAs(ctx, &planDevices, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		for _, device := range planDevices {
-			// Check if device_key is unknown or null
-			if device.Name.IsUnknown() {
-				resp.Diagnostics.AddWarning("Device key is unknown", "The device_key is unknown, skipping processing.")
-				continue
-			}
-
-			if device.Permission.IsNull() {
-				resp.Diagnostics.AddWarning("Device key is null", "The device_key is null, skipping processing.")
-				continue
-			}
-
-			// Check if device_value is unknown or null
-			if device.Name.IsUnknown() {
-				resp.Diagnostics.AddWarning("Device value is unknown", "The device_value is unknown, skipping processing.")
-				continue
-			}
-
-			if device.Permission.IsNull() {
-				resp.Diagnostics.AddWarning("Device value is null", "The device_value is null, skipping processing.")
-				continue
-			}
-
-			// Safely access the value
-			newApp.Devices = append(newApp.Devices, qnap.Devices{
-				Name:       device.Name.ValueString(),
-				Permission: device.Permission.ValueString(),
-			})
-		}
+	// Validate and convert YAML to JSON
+	jsonString, err := validateYAML(plan.Yml.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error validating and converting YAML to JSON",
+			err.Error(),
+		)
+		return
 	}
 
-	// Handle Apps
-	if !plan.Apps.IsNull() && !plan.Apps.IsUnknown() {
-		var planApps []Apps
-		diags := plan.Apps.ElementsAs(ctx, &planApps, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		for _, app := range planApps {
-			if app.Type.IsUnknown() || app.Type.IsNull() ||
-				app.Name.IsUnknown() || app.Name.IsNull() ||
-				app.App.IsUnknown() || app.App.IsNull() ||
-				app.Source.IsUnknown() || app.Source.IsNull() ||
-				app.Destination.IsUnknown() || app.Destination.IsNull() ||
-				app.Permission.IsUnknown() || app.Permission.IsNull() {
-				resp.Diagnostics.AddWarning("App attributes are unknown or null", "Skipping processing of a app because one or more attributes are unknown or null.")
-				continue
-			}
-
-			// Safely access the values
-			newApp.Apps = append(newApp.Apps, qnap.Apps{
-				Type:        app.Type.ValueString(),
-				Name:        app.Name.ValueString(),
-				App:         app.App.ValueString(),
-				Source:      app.Source.ValueString(),
-				Destination: app.Destination.ValueString(),
-				Permission:  app.Permission.ValueString(),
-			})
-			// Process the app
-		}
+	newApp := qnap.NewAppReqModel{
+		Name:           plan.Name.ValueString(),
+		Yml:            jsonString,
+		CPULimit:       plan.CPULimit.ValueInt32(),
+		MemLimit:       plan.MemLimit.ValueInt32(),
+		MemReservation: plan.MemReservation.ValueInt32(),
 	}
 
-	if !plan.PortBindings.IsNull() && !plan.PortBindings.IsUnknown() {
-		var planPortBindings []PortBindings
-		diags := plan.PortBindings.ElementsAs(ctx, &planPortBindings, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		// Handle PortBindings
-		for _, portBinding := range planPortBindings {
-			if portBinding.Host.IsUnknown() || portBinding.Host.IsNull() ||
-				portBinding.App.IsUnknown() || portBinding.App.IsNull() ||
-				portBinding.Protocol.IsUnknown() || portBinding.Protocol.IsNull() ||
-				portBinding.HostIP.IsUnknown() || portBinding.HostIP.IsNull() ||
-				portBinding.AppIP.IsUnknown() || portBinding.AppIP.IsNull() {
-				resp.Diagnostics.AddWarning("Port binding attributes are unknown or null", "Skipping processing of a port binding because one or more attributes are unknown or null.")
-				continue
-			}
-
-			// Safely access the values
-			newApp.PortBindings = append(newApp.PortBindings, qnap.PortBindings{
-				Host:     portBinding.Host.ValueInt32(),
-				App:      portBinding.App.ValueInt32(),
-				Protocol: portBinding.Protocol.ValueString(),
-				HostIP:   portBinding.HostIP.ValueString(),
-				AppIP:    portBinding.AppIP.ValueString(),
-			})
-		}
-	}
-
-	if !plan.RestartPolicy.IsNull() && !plan.RestartPolicy.IsUnknown() {
-		var planRestartPolicy RestartPolicy
-		diags := plan.RestartPolicy.As(ctx, &planRestartPolicy, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+	if !plan.DefaultURL.IsNull() && !plan.DefaultURL.IsUnknown() {
+		var default_url DefaultURLModel
+		diags := plan.DefaultURL.As(ctx, &default_url, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 		// Handle RestartPolicy
-		if planRestartPolicy.Name.IsUnknown() || planRestartPolicy.Name.IsNull() ||
-			planRestartPolicy.MaximumRetryCount.IsUnknown() || planRestartPolicy.MaximumRetryCount.IsNull() {
-			resp.Diagnostics.AddWarning("Port binding attributes are unknown or null", "Skipping processing of a port binding because one or more attributes are unknown or null.")
+		if default_url.Service.IsUnknown() || default_url.Service.IsNull() ||
+			default_url.Port.IsUnknown() || default_url.Port.IsNull() {
+			resp.Diagnostics.AddWarning("missing default url attributes", "Default URL is present however some attributes are missing, ensure service and port are present within the default url attribute.")
 		} else {
-			newApp.RestartPolicy = qnap.RestartPolicy{
-				Name:              planRestartPolicy.Name.ValueString(),
-				MaximumRetryCount: planRestartPolicy.MaximumRetryCount.ValueInt32(),
+			newApp.DefaultURL = qnap.NewAppReqDefaultURLModel{
+				Service: default_url.Service.ValueString(),
+				Port:    default_url.Port.ValueInt32(),
 			}
 		}
-	}
-
-	if !plan.Cpupin.IsNull() && !plan.Cpupin.IsUnknown() {
-		var planCpupin Cpupin
-		diags := plan.Cpupin.As(ctx, &planCpupin, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		// Handle CPUPIN
-		if planCpupin.CPUIDs.IsUnknown() || planCpupin.CPUIDs.IsNull() ||
-			planCpupin.Type.IsUnknown() || planCpupin.Type.IsNull() {
-			resp.Diagnostics.AddWarning("Port binding attributes are unknown or null", "Skipping processing of a port binding because one or more attributes are unknown or null.")
-		} else {
-			newApp.Cpupin = qnap.Cpupin{
-				CPUIDs: planCpupin.CPUIDs.ValueString(),
-				Type:   planCpupin.Type.ValueString(),
-			}
-		}
-	}
-
-	newApp.Env = make(map[string]string, len(plan.Env.Elements()))
-	_ = plan.Env.ElementsAs(ctx, newApp.Env, false)
-
-	newApp.Labels = make(map[string]string, len(plan.Labels.Elements()))
-	_ = plan.Labels.ElementsAs(ctx, newApp.Labels, false)
-
-	for _, item := range plan.Cmd.Elements() {
-		newApp.Cmd = append(newApp.Cmd, item.String())
-	}
-	for _, item := range plan.Entrypoint.Elements() {
-		newApp.Entrypoint = append(newApp.Entrypoint, item.String())
-	}
-	for _, item := range plan.DNS.Elements() {
-		newApp.DNS = append(newApp.DNS, item.String())
 	}
 
 	// Create new app
-	app, err := r.client.CreateApp(newApp, &r.client.Token)
+	app, err := r.client.CreateApplication(newApp, &r.client.Token)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating app",
@@ -415,161 +208,36 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	}
 
 	// Map response body to schema and populate Computed attribute values
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-	plan.ID = types.StringValue(app.Data.ID)
 
-	plan.AutoRemove = types.BoolValue(app.Data.AutoRemove)
+	plan.CPULimit = types.Int32Value(app.Data.CPULimit)
+	plan.MemReservation = types.Int32Value(app.Data.MemReservation)
+	plan.MemLimit = types.Int32Value(app.Data.MemLimit)
 
-	plan.Cmd, _ = types.ListValueFrom(ctx, types.StringType, app.Data.Cmd)
-
-	elements := []attr.Value{}
-	for _, item := range app.Data.Entrypoint {
-		elements = append(elements, types.StringValue(item))
-	}
-	plan.Entrypoint, _ = types.ListValue(types.StringType, elements)
-
-	elements = []attr.Value{}
-	for _, item := range app.Data.DNS {
-		elements = append(elements, types.StringValue(item))
-	}
-	plan.DNS, _ = types.ListValue(types.StringType, elements)
-
-	plan.Tty = types.BoolValue(app.Data.Tty)
-	plan.OpenStdin = types.BoolValue(app.Data.OpenStdin)
-	plan.Hostname = types.StringValue(app.Data.Hostname)
-
-	values := map[string]attr.Value{}
-	for envKey, envValue := range app.Data.Env {
-		values[envKey] = types.StringValue(envValue)
-	}
-	plan.Env, _ = types.MapValue(types.StringType, values)
-
-	values = map[string]attr.Value{}
-	for labelKey, labelValue := range app.Data.Labels {
-		values[labelKey] = types.StringValue(labelValue)
-	}
-	plan.Labels, _ = types.MapValue(types.StringType, values)
-
-	// Convert []Apps to basetypes.ListValue
-	var appListElements []attr.Value
+	// Convert []containers to basetypes.ListValue
+	var containerListElements []attr.Value
 	// Define the types for each attribute in the map
-	appAttrTypes := map[string]attr.Type{
-		"type":        types.StringType,
-		"name":        types.StringType,
-		"app":         types.StringType,
-		"source":      types.StringType,
-		"destination": types.StringType,
-		"permission":  types.StringType,
+	containerAttrTypes := map[string]attr.Type{
+		"name": types.StringType,
+		"id":   types.StringType,
 	}
-	for _, app := range app.Data.Apps {
+	for _, container := range app.Data.Containers {
 		// Map the attributes' values
-		appMap := map[string]attr.Value{
-			"type":        types.StringValue(app.Type),
-			"name":        types.StringValue(app.Name),
-			"app":         types.StringValue(app.App),
-			"source":      types.StringValue(app.Source),
-			"destination": types.StringValue(app.Destination),
-			"permission":  types.StringValue(app.Permission),
+		containerMap := map[string]attr.Value{
+			"name": types.StringValue(container.Name),
+			"id":   types.StringValue(container.ID),
 		}
 
-		appObject, diags := types.ObjectValue(appAttrTypes, appMap)
+		containerObject, diags := types.ObjectValue(containerAttrTypes, containerMap)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
-		appListElements = append(appListElements, appObject)
+		containerListElements = append(containerListElements, containerObject)
 	}
-	plan.Apps = basetypes.NewListValueMust(types.ObjectType{AttrTypes: appAttrTypes}, appListElements)
+	plan.Containers = basetypes.NewListValueMust(types.ObjectType{AttrTypes: containerAttrTypes}, containerListElements)
 
-	// Convert []Devices to basetypes.ListValue
-	var deviceListElements []attr.Value
-	deviceAttrTypes := map[string]attr.Type{
-		"name":       types.StringType,
-		"permission": types.StringType,
-	}
-	for _, device := range app.Data.Devices {
-		deviceMap := map[string]attr.Value{
-			"name":       types.StringValue(device.Name),
-			"permission": types.StringValue(device.Permission),
-		}
-
-		deviceObject, diags := types.ObjectValue(deviceAttrTypes, deviceMap)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		deviceListElements = append(deviceListElements, deviceObject)
-	}
-	plan.Devices = basetypes.NewListValueMust(types.ObjectType{AttrTypes: deviceAttrTypes}, deviceListElements)
-
-	// Convert []PortBindings to basetypes.ListValue
-	var portBindingListElements []attr.Value
-	portBindingAttrTypes := map[string]attr.Type{
-		"host":     types.Int32Type,
-		"app":      types.Int32Type,
-		"protocol": types.StringType,
-		"hostip":   types.StringType,
-		"appip":    types.StringType,
-	}
-	for _, portBinding := range app.Data.PortBindings {
-		portBindingMap := map[string]attr.Value{
-			"host":     types.Int32Value(portBinding.Host),
-			"app":      types.Int32Value(portBinding.App),
-			"protocol": types.StringValue(portBinding.Protocol),
-			"hostip":   types.StringValue(portBinding.HostIP),
-			"appip":    types.StringValue(portBinding.AppIP),
-		}
-
-		portBindingObject, diags := types.ObjectValue(portBindingAttrTypes, portBindingMap)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		portBindingListElements = append(portBindingListElements, portBindingObject)
-	}
-
-	plan.PortBindings = basetypes.NewListValueMust(types.ObjectType{AttrTypes: portBindingAttrTypes}, portBindingListElements)
-
-	// Convert RestartPolicy to basetypes.MapValue
-	restartPolicyAttrTypes := map[string]attr.Type{
-		"name":              types.StringType,
-		"maximumretrycount": types.Int32Type,
-	}
-	restartPolicyMap := map[string]attr.Value{
-		"name":              types.StringValue(app.Data.RestartPolicy.Name),
-		"maximumretrycount": types.Int32Value(app.Data.RestartPolicy.MaximumRetryCount),
-	}
-
-	restartPolicyObject, diags := types.ObjectValue(restartPolicyAttrTypes, restartPolicyMap)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.RestartPolicy = restartPolicyObject
-
-	// Convert CPUPIN to basetypes.MapValue
-	cpupinAttrTypes := map[string]attr.Type{
-		"cpuids": types.StringType,
-		"type":   types.StringType,
-	}
-	cpupinMap := map[string]attr.Value{
-		"cpuids": types.StringValue(app.Data.Cpupin.CPUIDs),
-		"type":   types.StringValue(app.Data.Cpupin.Type),
-	}
-
-	cpupinObject, diags := types.ObjectValue(cpupinAttrTypes, cpupinMap)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.Cpupin = cpupinObject
-
-	plan.Runtime = types.StringValue(app.Data.Runtime)
-	plan.Privileged = types.BoolValue(app.Data.Privileged)
-
+	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -582,17 +250,16 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
 	var state *AppSpecModel
-	var mappingDiags diag.Diagnostics
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	// Get refreshed order value from QNAP
-	appState, err := r.client.InspectApp(state.ID.ValueString(), state.Type.ValueString(), &r.client.Token)
+	appState, err := r.client.InspectApplication(state.Name.ValueString(), &r.client.Token)
 	if err != nil {
-		// Handle errors, such as resource not found
-		if isNotFound(err) {
+		//Handle errors, such as resource not found
+		if isAppNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -603,10 +270,36 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 		return
 	}
 
-	state, mappingDiags = mapFetchedDataToState(*appState)
-	if mappingDiags.HasError() {
-		return
+	// Map response attributes to state attributes
+	state.Yml = types.StringValue(appState.Data.Yml)
+	state.CPULimit = types.Int32Value(appState.Data.CPULimit)
+	state.MemLimit = types.Int32Value(appState.Data.MemLimit)
+	state.MemReservation = types.Int32Value(appState.Data.MemReservation)
+
+	// Convert []containers to basetypes.ListValue
+	var containerListElements []attr.Value
+	// Define the types for each attribute in the map
+	containerAttrTypes := map[string]attr.Type{
+		"name": types.StringType,
+		"id":   types.StringType,
 	}
+	for _, container := range appState.Data.Containers {
+		// Map the attributes' values
+		containerMap := map[string]attr.Value{
+			"name": types.StringValue(container.Name),
+			"id":   types.StringValue(container.ID),
+		}
+
+		containerObject, diags := types.ObjectValue(containerAttrTypes, containerMap)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		containerListElements = append(containerListElements, containerObject)
+	}
+	state.Containers = basetypes.NewListValueMust(types.ObjectType{AttrTypes: containerAttrTypes}, containerListElements)
+	state.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, state)
@@ -628,177 +321,46 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 		return
 	}
 
-	newApp := qnap.NewAppSpec{
-		Type:        string(plan.Type.ValueString()),
-		Name:        string(plan.Name.ValueString()),
-		Image:       string(plan.Image.ValueString()),
-		AutoRemove:  bool(plan.AutoRemove.ValueBool()),
-		Tty:         bool(plan.Tty.ValueBool()),
-		OpenStdin:   bool(plan.OpenStdin.ValueBool()),
-		Network:     string(plan.Network.ValueString()),
-		NetworkType: string(plan.NetworkType.ValueString()),
-		Hostname:    string(plan.Hostname.ValueString()),
-		Runtime:     string(plan.Runtime.ValueString()),
-		Privileged:  bool(plan.Privileged.ValueBool()),
-		Operation:   string(operation.ValueString()),
-	}
-	// Safely iterate over the devices
-	if !plan.Devices.IsNull() && !plan.Devices.IsUnknown() {
-		var planDevices []Devices
-		diags := plan.Devices.ElementsAs(ctx, &planDevices, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		for _, device := range planDevices {
-			// Check if device_key is unknown or null
-			if device.Name.IsUnknown() {
-				resp.Diagnostics.AddWarning("Device key is unknown", "The device_key is unknown, skipping processing.")
-				continue
-			}
-
-			if device.Permission.IsNull() {
-				resp.Diagnostics.AddWarning("Device key is null", "The device_key is null, skipping processing.")
-				continue
-			}
-
-			// Check if device_value is unknown or null
-			if device.Name.IsUnknown() {
-				resp.Diagnostics.AddWarning("Device value is unknown", "The device_value is unknown, skipping processing.")
-				continue
-			}
-
-			if device.Permission.IsNull() {
-				resp.Diagnostics.AddWarning("Device value is null", "The device_value is null, skipping processing.")
-				continue
-			}
-
-			// Safely access the value
-			newApp.Devices = append(newApp.Devices, qnap.Devices{
-				Name:       device.Name.ValueString(),
-				Permission: device.Permission.ValueString(),
-			})
-		}
+	// Validate and convert YAML to JSON
+	jsonString, err := validateYAML(plan.Yml.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error validating and converting YAML to JSON",
+			err.Error(),
+		)
+		return
 	}
 
-	// Handle Apps
-	if !plan.Apps.IsNull() && !plan.Apps.IsUnknown() {
-		var planApps []Apps
-		diags := plan.Apps.ElementsAs(ctx, &planApps, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		for _, app := range planApps {
-			if app.Type.IsUnknown() || app.Type.IsNull() ||
-				app.Name.IsUnknown() || app.Name.IsNull() ||
-				app.App.IsUnknown() || app.App.IsNull() ||
-				app.Source.IsUnknown() || app.Source.IsNull() ||
-				app.Destination.IsUnknown() || app.Destination.IsNull() ||
-				app.Permission.IsUnknown() || app.Permission.IsNull() {
-				resp.Diagnostics.AddWarning("App attributes are unknown or null", "Skipping processing of a app because one or more attributes are unknown or null.")
-				continue
-			}
-
-			// Safely access the values
-			newApp.Apps = append(newApp.Apps, qnap.Apps{
-				Type:        app.Type.ValueString(),
-				Name:        app.Name.ValueString(),
-				App:         app.App.ValueString(),
-				Source:      app.Source.ValueString(),
-				Destination: app.Destination.ValueString(),
-				Permission:  app.Permission.ValueString(),
-			})
-			// Process the app
-		}
+	newApp := qnap.NewAppReqModel{
+		Name:           plan.Name.ValueString(),
+		Yml:            jsonString,
+		CPULimit:       plan.CPULimit.ValueInt32(),
+		MemLimit:       plan.MemLimit.ValueInt32(),
+		MemReservation: plan.MemReservation.ValueInt32(),
+		Operation:      operation.ValueString(),
 	}
 
-	if !plan.PortBindings.IsNull() && !plan.PortBindings.IsUnknown() {
-		var planPortBindings []PortBindings
-		diags := plan.PortBindings.ElementsAs(ctx, &planPortBindings, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		// Handle PortBindings
-		for _, portBinding := range planPortBindings {
-			if portBinding.Host.IsUnknown() || portBinding.Host.IsNull() ||
-				portBinding.App.IsUnknown() || portBinding.App.IsNull() ||
-				portBinding.Protocol.IsUnknown() || portBinding.Protocol.IsNull() ||
-				portBinding.HostIP.IsUnknown() || portBinding.HostIP.IsNull() ||
-				portBinding.AppIP.IsUnknown() || portBinding.AppIP.IsNull() {
-				resp.Diagnostics.AddWarning("Port binding attributes are unknown or null", "Skipping processing of a port binding because one or more attributes are unknown or null.")
-				continue
-			}
-
-			// Safely access the values
-			newApp.PortBindings = append(newApp.PortBindings, qnap.PortBindings{
-				Host:     portBinding.Host.ValueInt32(),
-				App:      portBinding.App.ValueInt32(),
-				Protocol: portBinding.Protocol.ValueString(),
-				HostIP:   portBinding.HostIP.ValueString(),
-				AppIP:    portBinding.AppIP.ValueString(),
-			})
-		}
-	}
-
-	if !plan.RestartPolicy.IsNull() && !plan.RestartPolicy.IsUnknown() {
-		var planRestartPolicy RestartPolicy
-		diags := plan.RestartPolicy.As(ctx, &planRestartPolicy, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+	if !plan.DefaultURL.IsNull() && !plan.DefaultURL.IsUnknown() {
+		var default_url DefaultURLModel
+		diags := plan.DefaultURL.As(ctx, &default_url, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 		// Handle RestartPolicy
-		if planRestartPolicy.Name.IsUnknown() || planRestartPolicy.Name.IsNull() ||
-			planRestartPolicy.MaximumRetryCount.IsUnknown() || planRestartPolicy.MaximumRetryCount.IsNull() {
-			resp.Diagnostics.AddWarning("Port binding attributes are unknown or null", "Skipping processing of a port binding because one or more attributes are unknown or null.")
+		if default_url.Service.IsUnknown() || default_url.Service.IsNull() ||
+			default_url.Port.IsUnknown() || default_url.Port.IsNull() {
+			resp.Diagnostics.AddWarning("missing default url attributes", "Default URL is present however some attributes are missing, ensure service and port are present within the default url attribute.")
 		} else {
-			newApp.RestartPolicy = qnap.RestartPolicy{
-				Name:              planRestartPolicy.Name.ValueString(),
-				MaximumRetryCount: planRestartPolicy.MaximumRetryCount.ValueInt32(),
+			newApp.DefaultURL = qnap.NewAppReqDefaultURLModel{
+				Service: default_url.Service.ValueString(),
+				Port:    default_url.Port.ValueInt32(),
 			}
 		}
-	}
-
-	if !plan.Cpupin.IsNull() && !plan.Cpupin.IsUnknown() {
-		var planCpupin Cpupin
-		diags := plan.Cpupin.As(ctx, &planCpupin, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		// Handle CPUPIN
-		if planCpupin.CPUIDs.IsUnknown() || planCpupin.CPUIDs.IsNull() ||
-			planCpupin.Type.IsUnknown() || planCpupin.Type.IsNull() {
-			resp.Diagnostics.AddWarning("Port binding attributes are unknown or null", "Skipping processing of a port binding because one or more attributes are unknown or null.")
-		} else {
-			newApp.Cpupin = qnap.Cpupin{
-				CPUIDs: planCpupin.CPUIDs.ValueString(),
-				Type:   planCpupin.Type.ValueString(),
-			}
-		}
-	}
-
-	newApp.Env = make(map[string]string, len(plan.Env.Elements()))
-	_ = plan.Env.ElementsAs(ctx, newApp.Env, false)
-
-	newApp.Labels = make(map[string]string, len(plan.Labels.Elements()))
-	_ = plan.Labels.ElementsAs(ctx, newApp.Labels, false)
-
-	for _, item := range plan.Cmd.Elements() {
-		newApp.Cmd = append(newApp.Cmd, item.String())
-	}
-	for _, item := range plan.Entrypoint.Elements() {
-		newApp.Entrypoint = append(newApp.Entrypoint, item.String())
-	}
-	for _, item := range plan.DNS.Elements() {
-		newApp.DNS = append(newApp.DNS, item.String())
 	}
 
 	// Create new app
-	app, err := r.client.CreateApp(newApp, &r.client.Token)
+	app, err := r.client.CreateApplication(newApp, &r.client.Token)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating app",
@@ -808,161 +370,36 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 	}
 
 	// Map response body to schema and populate Computed attribute values
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-	plan.ID = types.StringValue(app.Data.ID)
 
-	plan.AutoRemove = types.BoolValue(app.Data.AutoRemove)
+	plan.CPULimit = types.Int32Value(app.Data.CPULimit)
+	plan.MemReservation = types.Int32Value(app.Data.MemReservation)
+	plan.MemLimit = types.Int32Value(app.Data.MemLimit)
 
-	plan.Cmd, _ = types.ListValueFrom(ctx, types.StringType, app.Data.Cmd)
-
-	elements := []attr.Value{}
-	for _, item := range app.Data.Entrypoint {
-		elements = append(elements, types.StringValue(item))
-	}
-	plan.Entrypoint, _ = types.ListValue(types.StringType, elements)
-
-	elements = []attr.Value{}
-	for _, item := range app.Data.DNS {
-		elements = append(elements, types.StringValue(item))
-	}
-	plan.DNS, _ = types.ListValue(types.StringType, elements)
-
-	plan.Tty = types.BoolValue(app.Data.Tty)
-	plan.OpenStdin = types.BoolValue(app.Data.OpenStdin)
-	plan.Hostname = types.StringValue(app.Data.Hostname)
-
-	values := map[string]attr.Value{}
-	for envKey, envValue := range app.Data.Env {
-		values[envKey] = types.StringValue(envValue)
-	}
-	plan.Env, _ = types.MapValue(types.StringType, values)
-
-	values = map[string]attr.Value{}
-	for labelKey, labelValue := range app.Data.Labels {
-		values[labelKey] = types.StringValue(labelValue)
-	}
-	plan.Labels, _ = types.MapValue(types.StringType, values)
-
-	// Convert []Apps to basetypes.ListValue
-	var appListElements []attr.Value
+	// Convert []containers to basetypes.ListValue
+	var containerListElements []attr.Value
 	// Define the types for each attribute in the map
-	appAttrTypes := map[string]attr.Type{
-		"type":        types.StringType,
-		"name":        types.StringType,
-		"app":         types.StringType,
-		"source":      types.StringType,
-		"destination": types.StringType,
-		"permission":  types.StringType,
+	containerAttrTypes := map[string]attr.Type{
+		"name": types.StringType,
+		"id":   types.StringType,
 	}
-	for _, app := range app.Data.Apps {
+	for _, container := range app.Data.Containers {
 		// Map the attributes' values
-		appMap := map[string]attr.Value{
-			"type":        types.StringValue(app.Type),
-			"name":        types.StringValue(app.Name),
-			"app":         types.StringValue(app.App),
-			"source":      types.StringValue(app.Source),
-			"destination": types.StringValue(app.Destination),
-			"permission":  types.StringValue(app.Permission),
+		containerMap := map[string]attr.Value{
+			"name": types.StringValue(container.Name),
+			"id":   types.StringValue(container.ID),
 		}
 
-		appObject, diags := types.ObjectValue(appAttrTypes, appMap)
+		containerObject, diags := types.ObjectValue(containerAttrTypes, containerMap)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
-		appListElements = append(appListElements, appObject)
+		containerListElements = append(containerListElements, containerObject)
 	}
-	plan.Apps = basetypes.NewListValueMust(types.ObjectType{AttrTypes: appAttrTypes}, appListElements)
+	plan.Containers = basetypes.NewListValueMust(types.ObjectType{AttrTypes: containerAttrTypes}, containerListElements)
 
-	// Convert []Devices to basetypes.ListValue
-	var deviceListElements []attr.Value
-	deviceAttrTypes := map[string]attr.Type{
-		"name":       types.StringType,
-		"permission": types.StringType,
-	}
-	for _, device := range app.Data.Devices {
-		deviceMap := map[string]attr.Value{
-			"name":       types.StringValue(device.Name),
-			"permission": types.StringValue(device.Permission),
-		}
-
-		deviceObject, diags := types.ObjectValue(deviceAttrTypes, deviceMap)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		deviceListElements = append(deviceListElements, deviceObject)
-	}
-	plan.Devices = basetypes.NewListValueMust(types.ObjectType{AttrTypes: deviceAttrTypes}, deviceListElements)
-
-	// Convert []PortBindings to basetypes.ListValue
-	var portBindingListElements []attr.Value
-	portBindingAttrTypes := map[string]attr.Type{
-		"host":     types.Int32Type,
-		"app":      types.Int32Type,
-		"protocol": types.StringType,
-		"hostip":   types.StringType,
-		"appip":    types.StringType,
-	}
-	for _, portBinding := range app.Data.PortBindings {
-		portBindingMap := map[string]attr.Value{
-			"host":     types.Int32Value(portBinding.Host),
-			"app":      types.Int32Value(portBinding.App),
-			"protocol": types.StringValue(portBinding.Protocol),
-			"hostip":   types.StringValue(portBinding.HostIP),
-			"appip":    types.StringValue(portBinding.AppIP),
-		}
-
-		portBindingObject, diags := types.ObjectValue(portBindingAttrTypes, portBindingMap)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		portBindingListElements = append(portBindingListElements, portBindingObject)
-	}
-
-	plan.PortBindings = basetypes.NewListValueMust(types.ObjectType{AttrTypes: portBindingAttrTypes}, portBindingListElements)
-
-	// Convert RestartPolicy to basetypes.MapValue
-	restartPolicyAttrTypes := map[string]attr.Type{
-		"name":              types.StringType,
-		"maximumretrycount": types.Int32Type,
-	}
-	restartPolicyMap := map[string]attr.Value{
-		"name":              types.StringValue(app.Data.RestartPolicy.Name),
-		"maximumretrycount": types.Int32Value(app.Data.RestartPolicy.MaximumRetryCount),
-	}
-
-	restartPolicyObject, diags := types.ObjectValue(restartPolicyAttrTypes, restartPolicyMap)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.RestartPolicy = restartPolicyObject
-
-	// Convert CPUPIN to basetypes.MapValue
-	cpupinAttrTypes := map[string]attr.Type{
-		"cpuids": types.StringType,
-		"type":   types.StringType,
-	}
-	cpupinMap := map[string]attr.Value{
-		"cpuids": types.StringValue(app.Data.Cpupin.CPUIDs),
-		"type":   types.StringValue(app.Data.Cpupin.Type),
-	}
-
-	cpupinObject, diags := types.ObjectValue(cpupinAttrTypes, cpupinMap)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.Cpupin = cpupinObject
-
-	plan.Runtime = types.StringValue(app.Data.Runtime)
-	plan.Privileged = types.BoolValue(app.Data.Privileged)
-
+	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -970,6 +407,7 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 		return
 	}
 }
+
 func (r *appResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
 	var state AppSpecModel
@@ -980,7 +418,7 @@ func (r *appResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 	}
 
 	// Delete existing order
-	_, err := r.client.DeleteApp(state.ID.ValueString(), state.Type.ValueString(), state.RemoveAnonApps.ValueBool(), &r.client.Token)
+	_, err := r.client.DeleteApplication(state.Name.ValueString(), state.RemoveAnonVolumes.ValueBool(), &r.client.Token)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Deleting HashiCups Order",
@@ -1009,4 +447,71 @@ func (r *appResource) Configure(ctx context.Context, req resource.ConfigureReque
 		return
 	}
 	r.client = client
+}
+
+func validateYAML(yamlData string) (string, error) {
+	var compose ComposeFile
+	err := yaml.Unmarshal([]byte(yamlData), &compose)
+	if err != nil {
+		return "", fmt.Errorf("invalid YAML: %w", err)
+	}
+
+	if compose.Version == "" {
+		return "", fmt.Errorf("missing required field: version")
+	}
+	if len(compose.Services) == 0 {
+		return "", fmt.Errorf("no services defined")
+	}
+
+	for serviceName, service := range compose.Services {
+		if service.Image == "" && service.Build.Context == "" {
+			return "", fmt.Errorf("service '%s' must have either an image or a build context", serviceName)
+		}
+	}
+
+	ValidatedYamlData, err := yaml.Marshal(compose)
+	if err != nil {
+		return "", fmt.Errorf("error converting to YAMML: %w", err)
+	}
+
+	return string(ValidatedYamlData), nil
+}
+
+func isAppNotFound(mess error) bool {
+	var status int
+	_, err := fmt.Sscanf(mess.Error(), "status: %d,", &status)
+	if err != nil {
+		fmt.Println("Error parsing status:", err)
+		return false
+	}
+
+	// Step 2: Extract the JSON part from the input string
+	start := strings.Index(mess.Error(), "body: {")
+	if start == -1 {
+		fmt.Println("Error: Could not find the body")
+		return false
+	}
+	jsonStr := mess.Error()[start+6:]
+
+	// Step 3: Unmarshal the JSON part
+	type Response struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}
+
+	var resp Response
+	err = json.Unmarshal([]byte(jsonStr), &resp)
+	if err != nil {
+		fmt.Println("Error unmarshaling JSON:", err)
+		return false
+	}
+
+	// Output the extracted values
+	fmt.Println("Status:", status)
+	fmt.Println("Code:", resp.Code)
+	fmt.Println("Message:", resp.Message)
+	if status == 404 && resp.Code == 1009 && resp.Message == "cannot find compose" {
+		return true
+	}
+	return false
 }
