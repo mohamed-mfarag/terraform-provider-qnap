@@ -1,0 +1,106 @@
+{
+	"type": "docker",
+	"name": "bazarr",
+	"image": "linuxserver/bazarr:latest",
+	"portBindings": [
+		{
+			"host": 49113,
+			"container": 6767,
+			"protocol": "TCP",
+			"hostIP": "0.0.0.0",
+			"containerIP": "",
+			"uniqueId": "portBindings_2197"
+		}
+	],
+	"restartPolicy": {
+		"name": "always",
+		"maximumRetryCount": 0
+	},
+	"autoRemove": false,
+	"cmd": [],
+	"entrypoint": [],
+	"tty": false,
+	"openStdin": true,
+	"pull": false,
+	"network": "bridge",
+	"networkType": "default",
+	"hostname": "Bazarr",
+	"dns": [],
+	"env": {
+		"HOME": "/root",
+		"LSIO_FIRST_PARTY": "true",
+		"PATH": "/lsiopy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"PGID": "911",
+		"PS1": "$(whoami)@$(hostname):$(pwd)\\$ ",
+		"PUID": "911",
+		"S6_CMD_WAIT_FOR_SERVICES_MAXTIME": "0",
+		"S6_STAGE2_HOOK": "/docker-mods",
+		"S6_VERBOSITY": "1",
+		"TERM": "xterm",
+		"TZ": "Europe/Berlin",
+		"VIRTUAL_ENV": "/lsiopy"
+	},
+	"labels": {
+		"build_version": "Linuxserver.io version:- v1.1.4-ls184 Build-date:- 2023-02-25T22:37:02-06:00",
+		"com.qnap.qcs.gpu": "False",
+		"com.qnap.qcs.network.mode": "nat",
+		"maintainer": "chbmb",
+		"org.opencontainers.image.authors": "linuxserver.io",
+		"org.opencontainers.image.created": "2023-02-25T22:37:02-06:00",
+		"org.opencontainers.image.description": "[Bazarr](https://www.bazarr.media/) is a companion application to Sonarr and Radarr. It can manage and download subtitles based on your requirements. You define your preferences by TV show or movie and Bazarr takes care of everything for you.",
+		"org.opencontainers.image.documentation": "https://docs.linuxserver.io/images/docker-bazarr",
+		"org.opencontainers.image.licenses": "GPL-3.0-only",
+		"org.opencontainers.image.ref.name": "7c66fa1ee8a47108adcac1062f3cc297828e87ab",
+		"org.opencontainers.image.revision": "7c66fa1ee8a47108adcac1062f3cc297828e87ab",
+		"org.opencontainers.image.source": "https://github.com/linuxserver/docker-bazarr",
+		"org.opencontainers.image.title": "Bazarr",
+		"org.opencontainers.image.url": "https://github.com/linuxserver/docker-bazarr/packages",
+		"org.opencontainers.image.vendor": "linuxserver.io",
+		"org.opencontainers.image.version": "v1.1.4-ls184"
+	},
+	"volumes": [
+		{
+			"type": "host",
+			"name": "",
+			"container": "",
+			"source": "/Container/container-station-data/volumes/media-center/bazzar",
+			"destination": "/config",
+			"permission": "writable",
+			"uniqueId": "volumes_2226"
+		},
+		{
+			"type": "host",
+			"name": "",
+			"container": "",
+			"source": "/media",
+			"destination": "/media",
+			"permission": "writable",
+			"uniqueId": "volumes_2226"
+		}
+	],
+	"runtime": "runc",
+	"privileged": false,
+	"gpu": [],
+	"devices": [
+		{
+			"name": "TTY (4)",
+			"permission": "writable"
+		}
+	],
+	"cpupin": {
+		"cpuIDs": "",
+		"type": "shared"
+	},
+	"originalPortBindings": [
+		{
+			"host": 49113,
+			"container": 6767,
+			"protocol": "TCP",
+			"hostIP": "0.0.0.0",
+			"containerIP": ""
+		}
+	],
+	"fromTemplate": null,
+	"imageID": "sha256:9862c288acd573d69a40af8e398c4c84352ca6470fc912c85b529cf9e1eef15e",
+	"operation": "recreate"
+}
