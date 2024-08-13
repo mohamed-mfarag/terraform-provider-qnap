@@ -96,22 +96,28 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"last_updated": schema.StringAttribute{
-				Computed: true,
+				Computed:    true,
+				Description: "The last updated timestamp of the container.",
 			},
 			"removeanonvolumes": schema.BoolAttribute{
-				Required: true,
+				Required:    true,
+				Description: "Whether to remove anonymous volumes associated with the container.",
 			},
 			"id": schema.StringAttribute{
-				Computed: true,
+				Computed:    true,
+				Description: "The ID of the container.",
 			},
 			"type": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "The type of the container.",
 			},
 			"name": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "The name of the container.",
 			},
 			"image": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "The image of the container.",
 			},
 			"portbindings": schema.ListNestedAttribute{
 				Optional: true,
@@ -119,24 +125,29 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"host": schema.Int32Attribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The host port.",
 						},
 						"container": schema.Int32Attribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The container port.",
 						},
 						"protocol": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The protocol used for port binding.",
 						},
 						"hostip": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The host IP address.",
 						},
 						"containerip": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The container IP address.",
 						},
 					},
 				},
@@ -146,61 +157,74 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Computed: true,
 				Attributes: map[string]schema.Attribute{
 					"name": schema.StringAttribute{
-						Optional: true,
-						Computed: true,
+						Optional:    true,
+						Computed:    true,
+						Description: "The name of the restart policy.",
 					},
 					"maximumretrycount": schema.Int32Attribute{
-						Optional: true,
-						Computed: true,
+						Optional:    true,
+						Computed:    true,
+						Description: "The maximum number of retries for the restart policy.",
 					},
 				},
 			},
 			"autoremove": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
+				Optional:    true,
+				Computed:    true,
+				Description: "Whether to automatically remove the container when it exits.",
 			},
 			"cmd": schema.ListAttribute{
 				ElementType: types.StringType,
 				Optional:    true,
 				Computed:    true,
+				Description: "The command to run in the container.",
 			},
 			"entrypoint": schema.ListAttribute{
 				ElementType: types.StringType,
 				Optional:    true,
 				Computed:    true,
+				Description: "The entrypoint for the container.",
 			},
 			"tty": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
+				Optional:    true,
+				Computed:    true,
+				Description: "Whether to allocate a pseudo-TTY.",
 			},
 			"openstdin": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
+				Optional:    true,
+				Computed:    true,
+				Description: "Whether to open stdin.",
 			},
 			"network": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "The network to connect the container to.",
 			},
 			"networktype": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "The type of the network.",
 			},
 			"hostname": schema.StringAttribute{
-				Optional: true,
-				Computed: true,
+				Optional:    true,
+				Computed:    true,
+				Description: "The hostname of the container.",
 			},
 			"dns": schema.ListAttribute{
 				ElementType: types.StringType,
 				Optional:    true,
 				Computed:    true,
+				Description: "The DNS servers for the container.",
 			},
 			"env": schema.MapAttribute{
 				ElementType: types.StringType,
 				Optional:    true,
 				Computed:    true,
+				Description: "The environment variables for the container.",
 			},
 			"labels": schema.MapAttribute{
 				ElementType: types.StringType,
 				Optional:    true,
 				Computed:    true,
+				Description: "The labels for the container.",
 			},
 			"volumes": schema.ListNestedAttribute{
 				Optional: true,
@@ -208,39 +232,47 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"type": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The type of the volume.",
 						},
 						"name": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The name of the volume.",
 						},
 						"container": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The container path for the volume.",
 						},
 						"source": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The source path for the volume.",
 						},
 						"destination": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The destination path for the volume.",
 						},
 						"permission": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The permission for the volume.",
 						},
 					},
 				},
 			},
 			"runtime": schema.StringAttribute{
-				Optional: true,
-				Computed: true,
+				Optional:    true,
+				Computed:    true,
+				Description: "The runtime for the container.",
 			},
 			"privileged": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
+				Optional:    true,
+				Computed:    true,
+				Description: "Whether to run the container in privileged mode.",
 			},
 			"devices": schema.ListNestedAttribute{
 				Optional: true,
@@ -248,12 +280,14 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"name": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The name of the device.",
 						},
 						"permission": schema.StringAttribute{
-							Optional: true,
-							Computed: true,
+							Optional:    true,
+							Computed:    true,
+							Description: "The permission for the device.",
 						},
 					},
 				},
@@ -263,12 +297,14 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Computed: true,
 				Attributes: map[string]schema.Attribute{
 					"cpuids": schema.StringAttribute{
-						Optional: true,
-						Computed: true,
+						Optional:    true,
+						Computed:    true,
+						Description: "The CPU IDs for the container.",
 					},
 					"type": schema.StringAttribute{
-						Optional: true,
-						Computed: true,
+						Optional:    true,
+						Computed:    true,
+						Description: "The type of CPU pinning.",
 					},
 				},
 			},
@@ -299,7 +335,8 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 		Runtime:     string(plan.Runtime.ValueString()),
 		Privileged:  bool(plan.Privileged.ValueBool()),
 	}
-	// Safely iterate over the devices
+
+	// Handle Devices
 	if !plan.Devices.IsNull() && !plan.Devices.IsUnknown() {
 		var planDevices []Devices
 		diags := plan.Devices.ElementsAs(ctx, &planDevices, false)
@@ -367,10 +404,10 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 				Destination: volume.Destination.ValueString(),
 				Permission:  volume.Permission.ValueString(),
 			})
-			// Process the volume
 		}
 	}
 
+	// Handle PortBindings
 	if !plan.PortBindings.IsNull() && !plan.PortBindings.IsUnknown() {
 		var planPortBindings []PortBindings
 		diags := plan.PortBindings.ElementsAs(ctx, &planPortBindings, false)
@@ -378,7 +415,6 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		// Handle PortBindings
 		for _, portBinding := range planPortBindings {
 			if portBinding.Host.IsUnknown() || portBinding.Host.IsNull() ||
 				portBinding.Container.IsUnknown() || portBinding.Container.IsNull() ||
@@ -400,6 +436,7 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 		}
 	}
 
+	// Handle RestartPolicy
 	if !plan.RestartPolicy.IsNull() && !plan.RestartPolicy.IsUnknown() {
 		var planRestartPolicy RestartPolicy
 		diags := plan.RestartPolicy.As(ctx, &planRestartPolicy, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
@@ -407,7 +444,6 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		// Handle RestartPolicy
 		if planRestartPolicy.Name.IsUnknown() || planRestartPolicy.Name.IsNull() ||
 			planRestartPolicy.MaximumRetryCount.IsUnknown() || planRestartPolicy.MaximumRetryCount.IsNull() {
 			resp.Diagnostics.AddWarning("Port binding attributes are unknown or null", "Skipping processing of a port binding because one or more attributes are unknown or null.")
@@ -419,6 +455,7 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 		}
 	}
 
+	// Handle CPUPIN
 	if !plan.Cpupin.IsNull() && !plan.Cpupin.IsUnknown() {
 		var planCpupin Cpupin
 		diags := plan.Cpupin.As(ctx, &planCpupin, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
@@ -426,7 +463,6 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		// Handle CPUPIN
 		if planCpupin.CPUIDs.IsUnknown() || planCpupin.CPUIDs.IsNull() ||
 			planCpupin.Type.IsUnknown() || planCpupin.Type.IsNull() {
 			resp.Diagnostics.AddWarning("Port binding attributes are unknown or null", "Skipping processing of a port binding because one or more attributes are unknown or null.")
@@ -472,12 +508,14 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 
 	plan.Cmd, _ = types.ListValueFrom(ctx, types.StringType, container.Data.Cmd)
 
+	// Populate Entrypoint attribute
 	elements := []attr.Value{}
 	for _, item := range container.Data.Entrypoint {
 		elements = append(elements, types.StringValue(item))
 	}
 	plan.Entrypoint, _ = types.ListValue(types.StringType, elements)
 
+	// Populate DNS attribute
 	elements = []attr.Value{}
 	for _, item := range container.Data.DNS {
 		elements = append(elements, types.StringValue(item))
@@ -488,12 +526,14 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 	plan.OpenStdin = types.BoolValue(container.Data.OpenStdin)
 	plan.Hostname = types.StringValue(container.Data.Hostname)
 
+	// Populate Env attribute
 	values := map[string]attr.Value{}
 	for envKey, envValue := range container.Data.Env {
 		values[envKey] = types.StringValue(envValue)
 	}
 	plan.Env, _ = types.MapValue(types.StringType, values)
 
+	// Populate Labels attribute
 	values = map[string]attr.Value{}
 	for labelKey, labelValue := range container.Data.Labels {
 		values[labelKey] = types.StringValue(labelValue)
@@ -1020,6 +1060,7 @@ func (r *containerResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 }
+
 func (r *containerResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
 	var state ContainerSpecModel
