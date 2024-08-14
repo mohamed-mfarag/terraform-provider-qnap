@@ -1,3 +1,1 @@
-data "scaffolding_example" "example" {
-  configurable_attribute = "some-value"
-}
+data "containers_data_source" "all_containers" {}

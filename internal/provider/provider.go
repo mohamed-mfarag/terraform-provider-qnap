@@ -51,16 +51,20 @@ func (p *qnapProvider) Metadata(_ context.Context, _ provider.MetadataRequest, r
 // Schema defines the provider-level schema for configuration data.
 func (p *qnapProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "This is the provider schema for qnap.",
 		Attributes: map[string]schema.Attribute{
 			"host": schema.StringAttribute{
-				Optional: true,
+				Optional:    true,
+				Description: "The host address of the qnap API. May also be provided via QNAP_HOST environment variable.",
 			},
 			"username": schema.StringAttribute{
-				Optional: true,
+				Optional:    true,
+				Description: "The username for authenticating with the qnap API. May also be provided via QNAP_USERNAME environment variable.",
 			},
 			"password": schema.StringAttribute{
-				Optional:  true,
-				Sensitive: true,
+				Optional:    true,
+				Sensitive:   true,
+				Description: "The password for authenticating with the qnap API. May also be provided via QNAP_PASSWORD environment variable.",
 			},
 		},
 	}

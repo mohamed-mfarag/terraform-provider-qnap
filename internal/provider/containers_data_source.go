@@ -95,92 +95,120 @@ func (d *containersDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
-							Computed: true,
+							Computed:    true,
+							Description: "The ID of the container.",
 						},
 						"name": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "The name of the container.",
 						},
 						"type": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "The type of the container.",
 						},
 						"image": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "The image of the container.",
 						},
 						"imageid": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "The image ID of the container.",
 						},
 						"status": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "The status of the container.",
 						},
 						"project": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "The project of the container.",
 						},
 						"runtime": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "The runtime of the container.",
 						},
 						"memorylimit": schema.Int32Attribute{
-							Required: true,
+							Required:    true,
+							Description: "The memory limit of the container.",
 						},
 						"cpulimit": schema.Int32Attribute{
-							Required: true,
+							Required:    true,
+							Description: "The CPU limit of the container.",
 						},
 						"cpupin": schema.Int32Attribute{
-							Required: true,
+							Required:    true,
+							Description: "The CPU pin of the container.",
 						},
 						"uuid": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "The UUID of the container.",
 						},
 						"usedbyinternalservice": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "The internal service used by the container.",
 						},
 						"privileged": schema.BoolAttribute{
-							Required: true,
+							Required:    true,
+							Description: "Whether the container is privileged.",
 						},
 						"cpu": schema.Float32Attribute{
-							Required: true,
+							Required:    true,
+							Description: "The CPU usage of the container.",
 						},
 						"memory": schema.Float32Attribute{
-							Required: true,
+							Required:    true,
+							Description: "The memory usage of the container.",
 						},
 						"tx": schema.Int32Attribute{
-							Required: true,
+							Required:    true,
+							Description: "The TX of the container.",
 						},
 						"rx": schema.Int32Attribute{
-							Required: true,
+							Required:    true,
+							Description: "The RX of the container.",
 						},
 						"read": schema.Int32Attribute{
-							Required: true,
+							Required:    true,
+							Description: "The read of the container.",
 						},
 						"write": schema.Int32Attribute{
-							Required: true,
+							Required:    true,
+							Description: "The write of the container.",
 						},
 						"created": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "The creation time of the container.",
 						},
 						"startedat": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "The start time of the container.",
 						},
 						"cmd": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "The command of the container.",
 						},
 						"portbindings": schema.ListNestedAttribute{
 							Computed: true,
 							NestedObject: schema.NestedAttributeObject{
 								Attributes: map[string]schema.Attribute{
 									"host": schema.Int32Attribute{
-										Required: true,
+										Required:    true,
+										Description: "The host port of the container.",
 									},
 									"container": schema.Int32Attribute{
-										Required: true,
+										Required:    true,
+										Description: "The container port of the container.",
 									},
 									"protocol": schema.StringAttribute{
-										Required: true,
+										Required:    true,
+										Description: "The protocol of the container port.",
 									},
 									"hostip": schema.StringAttribute{
-										Required: true,
+										Required:    true,
+										Description: "The host IP of the container port.",
 									},
 									"containerip": schema.StringAttribute{
-										Required: true,
+										Required:    true,
+										Description: "The container IP of the container port.",
 									},
 								},
 							},
@@ -190,28 +218,36 @@ func (d *containersDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 							NestedObject: schema.NestedAttributeObject{
 								Attributes: map[string]schema.Attribute{
 									"id": schema.StringAttribute{
-										Required: true,
+										Required:    true,
+										Description: "The ID of the network.",
 									},
 									"name": schema.StringAttribute{
-										Required: true,
+										Required:    true,
+										Description: "The name of the network.",
 									},
 									"displayname": schema.StringAttribute{
-										Required: true,
+										Required:    true,
+										Description: "The display name of the network.",
 									},
 									"ipaddress": schema.StringAttribute{
-										Required: true,
+										Required:    true,
+										Description: "The IP address of the network.",
 									},
 									"macaddress": schema.StringAttribute{
-										Required: true,
+										Required:    true,
+										Description: "The MAC address of the network.",
 									},
 									"gateway": schema.StringAttribute{
-										Required: true,
+										Required:    true,
+										Description: "The gateway of the network.",
 									},
 									"networktype": schema.StringAttribute{
-										Required: true,
+										Required:    true,
+										Description: "The type of the network.",
 									},
 									"isstaticip": schema.BoolAttribute{
-										Optional: true,
+										Optional:    true,
+										Description: "Whether the IP address is static.",
 									},
 								},
 							},

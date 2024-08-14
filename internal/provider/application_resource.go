@@ -98,53 +98,66 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "The name of the application.",
 			},
 			"yml": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "The YAML configuration for the application.",
 			},
 			"removeanonvolumes": schema.BoolAttribute{
-				Required: true,
+				Required:    true,
+				Description: "Whether to remove anonymous volumes when the application is removed.",
 			},
 			"containers": schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
-							Computed: true,
+							Computed:    true,
+							Description: "The ID of the container.",
 						},
 						"name": schema.StringAttribute{
-							Computed: true,
+							Computed:    true,
+							Description: "The name of the container.",
 						},
 					},
 				},
+				Description: "The list of containers in the application.",
 			},
 			"default_url": schema.SingleNestedAttribute{
 				Optional: true,
 				Attributes: map[string]schema.Attribute{
 					"port": schema.Int32Attribute{
-						Optional: true,
+						Optional:    true,
+						Description: "The port number for the default URL.",
 					},
 					"service": schema.StringAttribute{
-						Optional: true,
+						Optional:    true,
+						Description: "The service name for the default URL.",
 					},
 				},
+				Description: "The default URL for the application.",
 			},
 			"cpu_limit": schema.Int32Attribute{
-				Optional: true,
-				Computed: true,
+				Optional:    true,
+				Computed:    true,
+				Description: "The CPU limit for the application.",
 			},
 			"mem_limit": schema.Int32Attribute{
-				Optional: true,
-				Computed: true,
+				Optional:    true,
+				Computed:    true,
+				Description: "The memory limit for the application.",
 			},
 			"mem_reservation": schema.Int32Attribute{
-				Optional: true,
-				Computed: true,
+				Optional:    true,
+				Computed:    true,
+				Description: "The memory reservation for the application.",
 			},
 			"last_updated": schema.StringAttribute{
-				Optional: true,
-				Computed: true,
+				Optional:    true,
+				Computed:    true,
+				Description: "The last updated timestamp of the application.",
 			},
 		},
 	}
