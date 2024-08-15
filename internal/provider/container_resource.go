@@ -247,7 +247,7 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Required:    true,
 				Description: "The type of the network.",
 				Validators: []validator.String{
-					stringvalidator.OneOf("bridge", "host", "none", "ipvlan"),
+					stringvalidator.OneOf("bridge", "host", "none", "ipvlan", "default"),
 				},
 			},
 			"hostname": schema.StringAttribute{
