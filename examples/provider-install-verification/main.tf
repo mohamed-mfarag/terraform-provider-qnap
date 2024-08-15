@@ -64,56 +64,12 @@ provider "qnap" {
 # }
 
 resource "qnap_container" "bazarr15" {
-  status            = "stopped"
+  status            = "running"
   name              = "bazarr15"
   image             = "linuxserver/bazarr:latest"
   type              = "docker"
   network           = "bridge"
   networktype       = "default"
-  removeanonvolumes = true
+  removeanonvolumes = "yes"
 }
-resource "qnap_container" "bazarr10" {
-  status            = "stopped"
-  name              = "bazarr10"
-  image             = "linuxserver/bazarr:latest"
-  type              = "docker"
-  network           = "bridge"
-  networktype       = "default"
-  removeanonvolumes = true
-}
-resource "qnap_container" "bazarr11" {
-  status            = "stopped"
-  name              = "bazarr11"
-  image             = "linuxserver/bazarr:latest"
-  type              = "docker"
-  network           = "bridge"
-  networktype       = "default"
-  removeanonvolumes = true
-}
-resource "qnap_container" "bazarr12" {
-  status            = "stopped"
-  name              = "bazarr12"
-  image             = "linuxserver/bazarr:latest"
-  type              = "docker"
-  network           = "bridge"
-  networktype       = "default"
-  removeanonvolumes = true
-}
-resource "qnap_container" "bazarr13" {
-  status            = "stopped"
-  name              = "bazarr13"
-  image             = "linuxserver/bazarr:latest"
-  type              = "docker"
-  network           = "bridge"
-  networktype       = "default"
-  removeanonvolumes = true
-}
-resource "qnap_container" "bazarr14" {
-  status            = "stopped"
-  name              = "bazarr14"
-  image             = "linuxserver/bazarr:latest"
-  type              = "docker"
-  network           = "bridge"
-  networktype       = "default"
-  removeanonvolumes = true
-}
+

@@ -4,13 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/qnap-client-lib"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"gopkg.in/yaml.v2"
@@ -101,10 +104,17 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 			"name": schema.StringAttribute{
 				Required:    true,
 				Description: "The name of the application.",
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(1, 32),
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-zA-Z0-9](?:[a-zA-Z0-9_-]{0,30}[a-zA-Z0-9])?$`), "Application name must be between 2 and 32 characters, Valid characters: letters (a-z), numbers (0-9), hyphen (-), underscore (_)"),
+				},
 			},
 			"status": schema.StringAttribute{
 				Required:    true,
 				Description: "The state of the application (running, stopped). important to note that change in status requires complete recreation of the application - will be updated in the next version.",
+				Validators: []validator.String{
+					stringvalidator.OneOf("running", "stopped"),
+				},
 			},
 			"yml": schema.StringAttribute{
 				Required:    true,

@@ -4,14 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/qnap-client-lib"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -103,7 +107,10 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 			"status": schema.StringAttribute{
 				Required:    true,
-				Description: "The state of the container (running, stopped). important to note that change in status requires complete recreation of the container - will be updated in the next version.",
+				Description: "The state of the container (running, stopped).",
+				Validators: []validator.String{
+					stringvalidator.OneOf("running", "stopped"),
+				},
 			},
 			"removeanonvolumes": schema.BoolAttribute{
 				Required:    true,
@@ -116,14 +123,24 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"type": schema.StringAttribute{
 				Required:    true,
 				Description: "The type of the container.",
+				Validators: []validator.String{
+					stringvalidator.OneOf("docker"),
+				},
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
 				Description: "The name of the container.",
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(1, 64),
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$`), "Container name must be between 2 and 64 characters, starts with a letter or number. Valid characters: letters (A-Z, a-z), numbers (0-9), hyphen (-), period (.), underscore (_)"),
+				},
 			},
 			"image": schema.StringAttribute{
 				Required:    true,
 				Description: "The image of the container.",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)?[a-z0-9]+(?:[._-][a-z0-9]+)*(?::[a-z0-9]+(?:[._-][a-z0-9]+)*)?$`), "Image name must be in a valid format (e.g. 'nginx:latest', 'myregistry.local:5000/nginx:latest')."),
+				},
 			},
 			"portbindings": schema.ListNestedAttribute{
 				Optional: true,
@@ -134,26 +151,41 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							Optional:    true,
 							Computed:    true,
 							Description: "The host port.",
+							Validators: []validator.Int32{
+								int32validator.Between(0, 65535),
+							},
 						},
 						"container": schema.Int32Attribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "The container port.",
+							Validators: []validator.Int32{
+								int32validator.Between(0, 65535),
+							},
 						},
 						"protocol": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "The protocol used for port binding.",
+							Validators: []validator.String{
+								stringvalidator.OneOf("tcp", "udp"),
+							},
 						},
 						"hostip": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "The host IP address.",
+							Validators: []validator.String{
+								stringvalidator.RegexMatches(regexp.MustCompile(`^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$`), "IP Address must be in a valid format (e.g. 0.0.0.0')."),
+							},
 						},
 						"containerip": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "The container IP address.",
+							Validators: []validator.String{
+								stringvalidator.RegexMatches(regexp.MustCompile(`^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$`), "IP Address must be in a valid format (e.g. 0.0.0.0')."),
+							},
 						},
 					},
 				},
@@ -166,11 +198,17 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						Optional:    true,
 						Computed:    true,
 						Description: "The name of the restart policy.",
+						Validators: []validator.String{
+							stringvalidator.OneOf("no", "on-failure", "always", "unless-stopped"),
+						},
 					},
 					"maximumretrycount": schema.Int32Attribute{
 						Optional:    true,
 						Computed:    true,
 						Description: "The maximum number of retries for the restart policy.",
+						Validators: []validator.Int32{
+							int32validator.Between(0, 1000),
+						},
 					},
 				},
 			},
@@ -208,11 +246,17 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"networktype": schema.StringAttribute{
 				Required:    true,
 				Description: "The type of the network.",
+				Validators: []validator.String{
+					stringvalidator.OneOf("bridge", "host", "none", "ipvlan"),
+				},
 			},
 			"hostname": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
 				Description: "The hostname of the container.",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$`), "Hostname must be in a valid format (e.g. 'ubuntu' or 'ubuntu-1') long hostname are not valid only short hostname."),
+				},
 			},
 			"dns": schema.ListAttribute{
 				ElementType: types.StringType,
@@ -241,6 +285,9 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							Optional:    true,
 							Computed:    true,
 							Description: "The type of the volume.",
+							Validators: []validator.String{
+								stringvalidator.OneOf("host", "volume", "container"),
+							},
 						},
 						"name": schema.StringAttribute{
 							Optional:    true,
@@ -256,16 +303,25 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							Optional:    true,
 							Computed:    true,
 							Description: "The source path for the volume.",
+							Validators: []validator.String{
+								stringvalidator.RegexMatches(regexp.MustCompile(`^(\/(?:[^\/\0]+\/)*[^\/\0]+)?$`), "Path must be in a valid format (e.g. 'home/user' or '/home/user/file.txt')."),
+							},
 						},
 						"destination": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "The destination path for the volume.",
+							Validators: []validator.String{
+								stringvalidator.RegexMatches(regexp.MustCompile(`^(\/(?:[^\/\0]+\/)*[^\/\0]+)?$`), "Path must be in a valid format (e.g. 'home/user' or '/home/user/file.txt')."),
+							},
 						},
 						"permission": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "The permission for the volume.",
+							Validators: []validator.String{
+								stringvalidator.OneOf("readOnly", "writable"),
+							},
 						},
 					},
 				},
@@ -274,6 +330,10 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Optional:    true,
 				Computed:    true,
 				Description: "The runtime for the container.",
+
+				Validators: []validator.String{
+					stringvalidator.OneOf("runc", "kata-runtime"),
+				},
 			},
 			"privileged": schema.BoolAttribute{
 				Optional:    true,
