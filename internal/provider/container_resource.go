@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -47,23 +48,24 @@ type ContainerSpecModel struct {
 	Cmd               types.List            `tfsdk:"cmd"`
 	Entrypoint        basetypes.ListValue   `tfsdk:"entrypoint"`
 	DNS               basetypes.ListValue   `tfsdk:"dns"`
+	Status            basetypes.StringValue `tfsdk:"status"`
 }
-type RestartPolicy struct {
+type RestartPolicyModel struct {
 	Name              basetypes.StringValue `tfsdk:"name" default:"always"`
 	MaximumRetryCount basetypes.Int32Value  `tfsdk:"maximumretrycount" default:"0"`
 }
-type Cpupin struct {
+type CpupinModel struct {
 	CPUIDs basetypes.StringValue `tfsdk:"cpuids" default:""`
 	Type   basetypes.StringValue `tfsdk:"type" default:"shared"`
 }
-type PortBindings struct {
+type PortBindingsModel struct {
 	Host        basetypes.Int32Value  `tfsdk:"host"`
 	Container   basetypes.Int32Value  `tfsdk:"container"`
 	Protocol    basetypes.StringValue `tfsdk:"protocol"`
 	HostIP      basetypes.StringValue `tfsdk:"hostip"`
 	ContainerIP basetypes.StringValue `tfsdk:"containerip"`
 }
-type Volumes struct {
+type VolumesModel struct {
 	Type        basetypes.StringValue `tfsdk:"type"`
 	Name        basetypes.StringValue `tfsdk:"name"`
 	Container   basetypes.StringValue `tfsdk:"container"`
@@ -71,7 +73,7 @@ type Volumes struct {
 	Destination basetypes.StringValue `tfsdk:"destination"`
 	Permission  basetypes.StringValue `tfsdk:"permission"`
 }
-type Devices struct {
+type DevicesModel struct {
 	Name       basetypes.StringValue `tfsdk:"name"`
 	Permission basetypes.StringValue `tfsdk:"permission"`
 }
@@ -98,6 +100,10 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"last_updated": schema.StringAttribute{
 				Computed:    true,
 				Description: "The last updated timestamp of the container.",
+			},
+			"status": schema.StringAttribute{
+				Required:    true,
+				Description: "The state of the container (running, stopped). important to note that change in status requires complete recreation of the container - will be updated in the next version.",
 			},
 			"removeanonvolumes": schema.BoolAttribute{
 				Required:    true,
@@ -338,7 +344,7 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 
 	// Handle Devices
 	if !plan.Devices.IsNull() && !plan.Devices.IsUnknown() {
-		var planDevices []Devices
+		var planDevices []DevicesModel
 		diags := plan.Devices.ElementsAs(ctx, &planDevices, false)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -377,7 +383,7 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 
 	// Handle Volumes
 	if !plan.Volumes.IsNull() && !plan.Volumes.IsUnknown() {
-		var planVolumes []Volumes
+		var planVolumes []VolumesModel
 		diags := plan.Volumes.ElementsAs(ctx, &planVolumes, false)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -409,7 +415,7 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 
 	// Handle PortBindings
 	if !plan.PortBindings.IsNull() && !plan.PortBindings.IsUnknown() {
-		var planPortBindings []PortBindings
+		var planPortBindings []PortBindingsModel
 		diags := plan.PortBindings.ElementsAs(ctx, &planPortBindings, false)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -438,7 +444,7 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 
 	// Handle RestartPolicy
 	if !plan.RestartPolicy.IsNull() && !plan.RestartPolicy.IsUnknown() {
-		var planRestartPolicy RestartPolicy
+		var planRestartPolicy RestartPolicyModel
 		diags := plan.RestartPolicy.As(ctx, &planRestartPolicy, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -457,7 +463,7 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 
 	// Handle CPUPIN
 	if !plan.Cpupin.IsNull() && !plan.Cpupin.IsUnknown() {
-		var planCpupin Cpupin
+		var planCpupin CpupinModel
 		diags := plan.Cpupin.As(ctx, &planCpupin, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -660,6 +666,27 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 	plan.Runtime = types.StringValue(container.Data.Runtime)
 	plan.Privileged = types.BoolValue(container.Data.Privileged)
 
+	//validate the state matches what is expected in the plan
+	if plan.Status.ValueString() == "running" && container.Data.Status != "running" {
+		_, err = r.client.StartContainer(plan.ID.ValueString(), plan.Type.ValueString(), &r.client.Token)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error change container state to match requested state",
+				"Could not start container, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	} else if plan.Status.ValueString() == "stopped" && container.Data.Status != "stopped" {
+		_, err = r.client.StopContainer(plan.ID.ValueString(), plan.Type.ValueString(), &r.client.Token)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error change container state to match requested state",
+				"Could not stop container, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
+
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -734,7 +761,7 @@ func (r *containerResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 	// Safely iterate over the devices
 	if !plan.Devices.IsNull() && !plan.Devices.IsUnknown() {
-		var planDevices []Devices
+		var planDevices []DevicesModel
 		diags := plan.Devices.ElementsAs(ctx, &planDevices, false)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -773,7 +800,7 @@ func (r *containerResource) Update(ctx context.Context, req resource.UpdateReque
 
 	// Handle Volumes
 	if !plan.Volumes.IsNull() && !plan.Volumes.IsUnknown() {
-		var planVolumes []Volumes
+		var planVolumes []VolumesModel
 		diags := plan.Volumes.ElementsAs(ctx, &planVolumes, false)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -805,7 +832,7 @@ func (r *containerResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	if !plan.PortBindings.IsNull() && !plan.PortBindings.IsUnknown() {
-		var planPortBindings []PortBindings
+		var planPortBindings []PortBindingsModel
 		diags := plan.PortBindings.ElementsAs(ctx, &planPortBindings, false)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -834,7 +861,7 @@ func (r *containerResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	if !plan.RestartPolicy.IsNull() && !plan.RestartPolicy.IsUnknown() {
-		var planRestartPolicy RestartPolicy
+		var planRestartPolicy RestartPolicyModel
 		diags := plan.RestartPolicy.As(ctx, &planRestartPolicy, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -853,7 +880,7 @@ func (r *containerResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	if !plan.Cpupin.IsNull() && !plan.Cpupin.IsUnknown() {
-		var planCpupin Cpupin
+		var planCpupin CpupinModel
 		diags := plan.Cpupin.As(ctx, &planCpupin, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -1052,6 +1079,27 @@ func (r *containerResource) Update(ctx context.Context, req resource.UpdateReque
 
 	plan.Runtime = types.StringValue(container.Data.Runtime)
 	plan.Privileged = types.BoolValue(container.Data.Privileged)
+
+	//validate the state matches what is expected in the plan
+	if plan.Status.ValueString() == "running" && container.Data.Status != "running" {
+		_, err = r.client.StartContainer(plan.ID.ValueString(), plan.Type.ValueString(), &r.client.Token)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error change container state to match requested state",
+				"Could not start container, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	} else if plan.Status.ValueString() == "stopped" && container.Data.Status != "stopped" {
+		_, err = r.client.StopContainer(plan.ID.ValueString(), plan.Type.ValueString(), &r.client.Token)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error change container state to match requested state",
+				"Could not stop container, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
 
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)

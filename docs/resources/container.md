@@ -61,6 +61,7 @@ resource "qnap_container" "bazarr10" {
 - `network` (String) The network to connect the container to.
 - `networktype` (String) The type of the network.
 - `removeanonvolumes` (Boolean) Whether to remove anonymous volumes associated with the container.
+- `status` (String) The state of the container (running, stopped). important to note that change in status requires complete recreation of the container - will be updated in the next version.
 - `type` (String) The type of the container.
 
 ### Optional

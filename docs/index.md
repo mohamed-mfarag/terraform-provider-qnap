@@ -3,12 +3,12 @@
 page_title: "qnap Provider"
 subcategory: ""
 description: |-
-  Use the QNAP provider to interact with the QNAP NAS Container Station resources and data sources.
+  Use the QNAP provider to interact with the QNAP NAS Container Station resources and data sources. Start multiple resource operation with parallelism=1 and increase from there to reach the limit your NAS can handle safely
 ---
 
 # qnap Provider
 
-Use the QNAP provider to interact with the QNAP NAS Container Station resources and data sources.
+Use the QNAP provider to interact with the QNAP NAS Container Station resources and data sources. Start multiple resource operation with parallelism=1 and increase from there to reach the limit your NAS can handle safely
 
 ## Example Usage
 

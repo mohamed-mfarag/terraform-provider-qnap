@@ -68,6 +68,7 @@ type AppSpecModel struct {
 	MemLimit          basetypes.Int32Value  `tfsdk:"mem_limit"`
 	MemReservation    basetypes.Int32Value  `tfsdk:"mem_reservation"`
 	RemoveAnonVolumes basetypes.BoolValue   `tfsdk:"removeanonvolumes"`
+	Status            basetypes.StringValue `tfsdk:"status"`
 }
 type ContainersModel struct {
 	ID   basetypes.StringValue `tfsdk:"id"`
@@ -100,6 +101,10 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 			"name": schema.StringAttribute{
 				Required:    true,
 				Description: "The name of the application.",
+			},
+			"status": schema.StringAttribute{
+				Required:    true,
+				Description: "The state of the application (running, stopped). important to note that change in status requires complete recreation of the application - will be updated in the next version.",
 			},
 			"yml": schema.StringAttribute{
 				Required:    true,
@@ -250,7 +255,29 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	}
 	plan.Containers = basetypes.NewListValueMust(types.ObjectType{AttrTypes: containerAttrTypes}, containerListElements)
 
+	//validate the state matches what is expected in the plan
+	if plan.Status.ValueString() == "running" && app.Data.Status != "running" {
+		_, err = r.client.StartApplication(plan.Name.ValueString(), &r.client.Token)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error change application state to match requested state",
+				"Could not start application, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	} else if plan.Status.ValueString() == "stopped" && app.Data.Status != "stopped" {
+		_, err = r.client.StopApplication(plan.Name.ValueString(), &r.client.Token)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error change application state to match requested state",
+				"Could not stop application, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
+
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -411,7 +438,26 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 		containerListElements = append(containerListElements, containerObject)
 	}
 	plan.Containers = basetypes.NewListValueMust(types.ObjectType{AttrTypes: containerAttrTypes}, containerListElements)
-
+	//validate the state matches what is expected in the plan
+	if plan.Status.ValueString() == "running" {
+		_, err = r.client.StartApplication(plan.Name.ValueString(), &r.client.Token)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error change application state to match requested state",
+				"Could not start application, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	} else if plan.Status.ValueString() == "stopped" {
+		_, err = r.client.StopApplication(plan.Name.ValueString(), &r.client.Token)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error change application state to match requested state",
+				"Could not stop application, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)

@@ -27,6 +27,7 @@ resource "qnap_app" "postgresql-test" {
 
 - `name` (String) The name of the application.
 - `removeanonvolumes` (Boolean) Whether to remove anonymous volumes when the application is removed.
+- `status` (String) The state of the application (running, stopped). important to note that change in status requires complete recreation of the application - will be updated in the next version.
 - `yml` (String) The YAML configuration for the application.
 
 ### Optional

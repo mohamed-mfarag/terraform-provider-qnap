@@ -51,7 +51,7 @@ func (p *qnapProvider) Metadata(_ context.Context, _ provider.MetadataRequest, r
 // Schema defines the provider-level schema for configuration data.
 func (p *qnapProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Use the QNAP provider to interact with the QNAP NAS Container Station resources and data sources.",
+		Description: "Use the QNAP provider to interact with the QNAP NAS Container Station resources and data sources. Start multiple resource operation with parallelism=1 and increase from there to reach the limit your NAS can handle safely",
 		Attributes: map[string]schema.Attribute{
 			"host": schema.StringAttribute{
 				Optional:    true,
