@@ -241,7 +241,7 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 			"network": schema.StringAttribute{
 				Required:    true,
-				Description: "The network to connect the container to.",
+				Description: "The network to connect the container to. examples are this network/networktype compinations default(the NAT network)/bridge, host/default, bridge/ethx (ethx for the ethernet adaptor you are connecting to when selecting bridge).",
 			},
 			"networktype": schema.StringAttribute{
 				Required:    true,
