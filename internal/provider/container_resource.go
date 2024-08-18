@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/qnap-client-lib"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -16,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/mohamed-mfarag/qnap-client-lib"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -32,6 +32,7 @@ type ContainerSpecModel struct {
 	Type              basetypes.StringValue `tfsdk:"type"`
 	Name              basetypes.StringValue `tfsdk:"name"`
 	Image             basetypes.StringValue `tfsdk:"image"`
+	IPAddress         basetypes.StringValue `tfsdk:"ipaddress"`
 	AutoRemove        basetypes.BoolValue   `tfsdk:"autoremove"`
 	Tty               basetypes.BoolValue   `tfsdk:"tty"`
 	OpenStdin         basetypes.BoolValue   `tfsdk:"openstdin"`
@@ -47,12 +48,23 @@ type ContainerSpecModel struct {
 	Devices           basetypes.ListValue   `tfsdk:"devices"`
 	Volumes           basetypes.ListValue   `tfsdk:"volumes"`
 	PortBindings      basetypes.ListValue   `tfsdk:"portbindings"`
+	Networks          basetypes.ListValue   `tfsdk:"networks"`
 	Cpupin            basetypes.ObjectValue `tfsdk:"cpupin"`
 	RestartPolicy     basetypes.ObjectValue `tfsdk:"restartpolicy"`
 	Cmd               types.List            `tfsdk:"cmd"`
 	Entrypoint        basetypes.ListValue   `tfsdk:"entrypoint"`
 	DNS               basetypes.ListValue   `tfsdk:"dns"`
 	Status            basetypes.StringValue `tfsdk:"status"`
+}
+type NetworkModel struct {
+	ID          basetypes.StringValue `tfsdk:"id"`
+	Name        basetypes.StringValue `tfsdk:"name"`
+	IPAddress   basetypes.StringValue `tfsdk:"ipaddress"`
+	DisplayName basetypes.StringValue `tfsdk:"displayname"`
+	MACAddress  basetypes.StringValue `tfsdk:"macaddress"`
+	Gateway     basetypes.StringValue `tfsdk:"gateway"`
+	NetworkType basetypes.StringValue `tfsdk:"networktype"`
+	IsStaticIP  basetypes.BoolValue   `tfsdk:"isstaticip"`
 }
 type RestartPolicyModel struct {
 	Name              basetypes.StringValue `tfsdk:"name" default:"always"`
@@ -119,6 +131,14 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "The ID of the container.",
+			},
+			"ipaddress": schema.StringAttribute{
+				Computed:    true,
+				Optional:    true,
+				Description: "The ip address assigned to the container incase a networktype bridge is selected.",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$`), "IP Address must be in a valid format (e.g. 0.0.0.0')."),
+				},
 			},
 			"type": schema.StringAttribute{
 				Required:    true,
@@ -241,11 +261,11 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 			"network": schema.StringAttribute{
 				Required:    true,
-				Description: "The network to connect the container to. examples are this network/networktype compinations default(the NAT network)/bridge, host/default, bridge/ethx (ethx for the ethernet adaptor you are connecting to when selecting bridge).",
+				Description: "The network to connect the container to. Examples of network/networktype compinations: default(the NAT network)/bridge, host/default, bridge/ethx (ethx for the ethernet adaptor you are connecting to when selecting bridge).",
 			},
 			"networktype": schema.StringAttribute{
 				Required:    true,
-				Description: "The type of the network.",
+				Description: "The type of the network. Examples of network/networktype compinations: default(the NAT network)/bridge, host/default, bridge/ethx (ethx for the ethernet adaptor you are connecting to when selecting bridge).",
 				Validators: []validator.String{
 					stringvalidator.OneOf("bridge", "host", "none", "ipvlan", "default"),
 				},
@@ -374,6 +394,45 @@ func (d *containerResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					},
 				},
 			},
+			"networks": schema.ListNestedAttribute{
+				Computed: true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"id": schema.StringAttribute{
+							Computed:    true,
+							Description: "The ID of the network.",
+						},
+						"name": schema.StringAttribute{
+							Computed:    true,
+							Description: "The name of the network.",
+						},
+						"ipaddress": schema.StringAttribute{
+							Computed:    true,
+							Description: "The ip address assigned to the network.",
+						},
+						"displayname": schema.StringAttribute{
+							Computed:    true,
+							Description: "The display name of the network.",
+						},
+						"macaddress": schema.StringAttribute{
+							Computed:    true,
+							Description: "The MAC address of the network.",
+						},
+						"gateway": schema.StringAttribute{
+							Computed:    true,
+							Description: "The gateway of the network.",
+						},
+						"networktype": schema.StringAttribute{
+							Computed:    true,
+							Description: "The type of the network.",
+						},
+						"isstaticip": schema.BoolAttribute{
+							Computed:    true,
+							Description: "Whether the network is static IP.",
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -400,6 +459,7 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 		Hostname:    string(plan.Hostname.ValueString()),
 		Runtime:     string(plan.Runtime.ValueString()),
 		Privileged:  bool(plan.Privileged.ValueBool()),
+		IPAddress:   string(plan.IPAddress.ValueString()),
 	}
 
 	// Handle Devices
@@ -485,12 +545,12 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 			if portBinding.Host.IsUnknown() || portBinding.Host.IsNull() ||
 				portBinding.Container.IsUnknown() || portBinding.Container.IsNull() ||
 				portBinding.Protocol.IsUnknown() || portBinding.Protocol.IsNull() ||
-				portBinding.HostIP.IsUnknown() || portBinding.HostIP.IsNull() ||
-				portBinding.ContainerIP.IsUnknown() || portBinding.ContainerIP.IsNull() {
+				portBinding.HostIP.IsUnknown() || portBinding.HostIP.IsNull() {
 				resp.Diagnostics.AddWarning("Port binding attributes are unknown or null", "Skipping processing of a port binding because one or more attributes are unknown or null.")
 				continue
+			} else if portBinding.ContainerIP.IsUnknown() || portBinding.ContainerIP.IsNull() {
+				portBinding.ContainerIP = types.StringValue("")
 			}
-
 			// Safely access the values
 			newContainer.PortBindings = append(newContainer.PortBindings, qnap.PortBindings{
 				Host:        portBinding.Host.ValueInt32(),
@@ -606,6 +666,42 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 	}
 	plan.Labels, _ = types.MapValue(types.StringType, values)
 
+	// Convert []Networks to basetypes.ListValue
+	var networkListElements []attr.Value
+	// Define the types for each attribute in the map
+	networkAttrTypes := map[string]attr.Type{
+		"id":          types.StringType,
+		"name":        types.StringType,
+		"ipaddress":   types.StringType,
+		"displayname": types.StringType,
+		"macaddress":  types.StringType,
+		"gateway":     types.StringType,
+		"networktype": types.StringType,
+		"isstaticip":  types.BoolType,
+	}
+	for _, network := range container.Data.Networks {
+		// Map the attributes' values
+		networkMap := map[string]attr.Value{
+			"id":          types.StringValue(network.ID),
+			"name":        types.StringValue(network.Name),
+			"ipaddress":   types.StringValue(network.IPAddress),
+			"displayname": types.StringValue(network.DisplayName),
+			"macaddress":  types.StringValue(network.MacAddress),
+			"gateway":     types.StringValue(network.Gateway),
+			"networktype": types.StringValue(network.NetworkType),
+			"isstaticip":  types.BoolValue(network.IsStaticIP),
+		}
+
+		networkObject, diags := types.ObjectValue(networkAttrTypes, networkMap)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		networkListElements = append(networkListElements, networkObject)
+	}
+	plan.Networks = basetypes.NewListValueMust(types.ObjectType{AttrTypes: networkAttrTypes}, networkListElements)
+
 	// Convert []Volumes to basetypes.ListValue
 	var volumeListElements []attr.Value
 	// Define the types for each attribute in the map
@@ -673,7 +769,7 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 		portBindingMap := map[string]attr.Value{
 			"host":        types.Int32Value(portBinding.Host),
 			"container":   types.Int32Value(portBinding.Container),
-			"protocol":    types.StringValue(portBinding.Protocol),
+			"protocol":    types.StringValue(strings.ToLower(portBinding.Protocol)),
 			"hostip":      types.StringValue(portBinding.HostIP),
 			"containerip": types.StringValue(portBinding.ContainerIP),
 		}

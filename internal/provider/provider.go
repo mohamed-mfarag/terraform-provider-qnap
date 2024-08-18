@@ -4,13 +4,13 @@ import (
 	"context"
 	"os"
 
-	"github.com/hashicorp/qnap-client-lib"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/mohamed-mfarag/qnap-client-lib"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
