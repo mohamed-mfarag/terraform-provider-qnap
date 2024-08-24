@@ -120,6 +120,10 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 					stringvalidator.LengthBetween(1, 32),
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-zA-Z0-9](?:[a-zA-Z0-9_-]{0,30}[a-zA-Z0-9])?$`), "Application name must be between 2 and 32 characters, Valid characters: letters (a-z), numbers (0-9), hyphen (-), underscore (_)"),
 				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"status": schema.StringAttribute{
 				Required:    true,
@@ -127,12 +131,17 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				Validators: []validator.String{
 					stringvalidator.OneOf("running", "stopped"),
 				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"yml": schema.StringAttribute{
 				Required:    true,
 				Description: "The YAML configuration for the application.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"removeanonvolumes": schema.BoolAttribute{
@@ -140,6 +149,7 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				Description: "Whether to remove anonymous volumes when the application is removed.",
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
+					boolplanmodifier.RequiresReplace(),
 				},
 			},
 			"containers": schema.ListNestedAttribute{
@@ -172,6 +182,7 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				Description: "The default URL for the application.",
 				PlanModifiers: []planmodifier.Object{
 					objectplanmodifier.UseStateForUnknown(),
+					objectplanmodifier.RequiresReplace(),
 				},
 				Attributes: map[string]schema.Attribute{
 					"port": schema.Int32Attribute{
@@ -179,6 +190,7 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 						Description: "The port number for the default URL.",
 						PlanModifiers: []planmodifier.Int32{
 							int32planmodifier.UseStateForUnknown(),
+							int32planmodifier.RequiresReplace(),
 						},
 					},
 					"service": schema.StringAttribute{
@@ -186,6 +198,7 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 						Description: "The service name for the default URL.",
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
+							stringplanmodifier.RequiresReplace(),
 						},
 					},
 				},
@@ -196,6 +209,7 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				Description: "The CPU limit for the application.",
 				PlanModifiers: []planmodifier.Int32{
 					int32planmodifier.UseStateForUnknown(),
+					int32planmodifier.RequiresReplace(),
 				},
 			},
 			"mem_limit": schema.Int32Attribute{
@@ -204,6 +218,7 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				Description: "The memory limit for the application.",
 				PlanModifiers: []planmodifier.Int32{
 					int32planmodifier.UseStateForUnknown(),
+					int32planmodifier.RequiresReplace(),
 				},
 			},
 			"mem_reservation": schema.Int32Attribute{
@@ -212,6 +227,7 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				Description: "The memory reservation for the application.",
 				PlanModifiers: []planmodifier.Int32{
 					int32planmodifier.UseStateForUnknown(),
+					int32planmodifier.RequiresReplace(),
 				},
 			},
 			"last_updated": schema.StringAttribute{
