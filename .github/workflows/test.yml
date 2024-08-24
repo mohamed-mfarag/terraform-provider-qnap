@@ -83,5 +83,6 @@ jobs:
       - run: go mod download
       - env:
           TF_ACC: "1"
+        if: env.RUN_ACCEPTANCE_TESTS == 'true'
         run: go test -v -cover ./internal/provider/
         timeout-minutes: 10
