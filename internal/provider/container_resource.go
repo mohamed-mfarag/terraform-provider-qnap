@@ -604,6 +604,8 @@ func (r *containerResource) Create(ctx context.Context, req resource.CreateReque
 	}
 	// special case for RemoveAnonVolumes as its static to the plan and is used only during destroy
 	state.RemoveAnonVolumes = plan.RemoveAnonVolumes
+	// special case for network name as it requires side call to qnap to compare the returned name vs the plan name
+	state.Network = plan.Network
 
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, state)
@@ -653,6 +655,8 @@ func (r *containerResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	// special case for the last updated field and RemoveAnonVolumes
 	finalState.RemoveAnonVolumes = state.RemoveAnonVolumes
+	// special case for network name as it requires side call to qnap to compare the returned name vs the plan name
+	finalState.Network = state.Network
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, finalState)
@@ -943,7 +947,6 @@ func WriteState(ctx context.Context, container *qnap.ContainerInfo) (ContainerSp
 	plan.Image = types.StringValue(container.Data.Image)
 	plan.Type = types.StringValue(container.Data.Type)
 	plan.Status = types.StringValue(container.Data.Status)
-	plan.Network = types.StringValue(container.Data.Networks[0].Name)
 	plan.NetworkType = types.StringValue(container.Data.Networks[0].NetworkType)
 
 	// Populate Entrypoint attribute

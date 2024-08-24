@@ -225,15 +225,22 @@ func (d *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 // Create a new resource.
 func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 
-	var plan AppSpecModel
-	newApp, diags := ReadState(ctx, req.Plan)
+	var plan, state *AppSpecModel
+
+	newAppPlan, diags := ReadState(ctx, req.Plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Create new app
-	app, err := r.client.CreateApplication(newApp, &r.client.Token)
+	app, err := r.client.CreateApplication(newAppPlan, &r.client.Token)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating app",
@@ -243,60 +250,17 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	}
 
 	// Map response body to schema and populate Computed attribute values
-
-	plan.CPULimit = types.Int32Value(app.Data.CPULimit)
-	plan.MemReservation = types.Int32Value(app.Data.MemReservation)
-	plan.MemLimit = types.Int32Value(app.Data.MemLimit)
-
-	// Convert []containers to basetypes.ListValue
-	var containerListElements []attr.Value
-	// Define the types for each attribute in the map
-	containerAttrTypes := map[string]attr.Type{
-		"name": types.StringType,
-		"id":   types.StringType,
-	}
-	for _, container := range app.Data.Containers {
-		// Map the attributes' values
-		containerMap := map[string]attr.Value{
-			"name": types.StringValue(container.Name),
-			"id":   types.StringValue(container.ID),
-		}
-
-		containerObject, diags := types.ObjectValue(containerAttrTypes, containerMap)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		containerListElements = append(containerListElements, containerObject)
-	}
-	plan.Containers = basetypes.NewListValueMust(types.ObjectType{AttrTypes: containerAttrTypes}, containerListElements)
-
-	//validate the state matches what is expected in the plan
-	if plan.Status.ValueString() == "running" && app.Data.Status != "running" {
-		_, err = r.client.StartApplication(plan.Name.ValueString(), &r.client.Token)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error change application state to match requested state",
-				"Could not start application, unexpected error: "+err.Error(),
-			)
-			return
-		}
-	} else if plan.Status.ValueString() == "stopped" && app.Data.Status != "stopped" {
-		_, err = r.client.StopApplication(plan.Name.ValueString(), &r.client.Token)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error change application state to match requested state",
-				"Could not stop application, unexpected error: "+err.Error(),
-			)
-			return
-		}
+	state, diags = GetCurrentState(ctx, plan, app)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	// special handling for the removeanonvolumes attribute
+	state.RemoveAnonVolumes = plan.RemoveAnonVolumes
 
 	// Set state to fully populated data
-	diags = resp.State.Set(ctx, plan)
+	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -334,8 +298,6 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 		return
 	}
 
-	// Name must be equal as it stand as ID
-	newState.Name = priorState.Name
 	// Check if the RemoveAnonVolumes is equal
 	newState.RemoveAnonVolumes = priorState.RemoveAnonVolumes
 	// Set refreshed state
@@ -516,6 +478,7 @@ func GetCurrentState(ctx context.Context, priorState *AppSpecModel, currentState
 	var newState *AppSpecModel = &AppSpecModel{}
 	var priorStateCompose, currentStateCompose *ComposeFile
 	var diagnostics diag.Diagnostics
+
 	err := yaml.Unmarshal([]byte(priorState.Yml.ValueString()), &priorStateCompose)
 	if err != nil {
 		diagnostics.AddError("invalid YAML from priorState", err.Error())
@@ -532,7 +495,6 @@ func GetCurrentState(ctx context.Context, priorState *AppSpecModel, currentState
 	} else {
 		newState.Yml = types.StringValue(currentState.Data.Yml)
 	}
-
 	// Check if the CPU limit is equal
 	if priorState.CPULimit.Equal(types.Int32Value(currentState.Data.CPULimit)) {
 		newState.CPULimit = priorState.CPULimit
@@ -580,6 +542,8 @@ func GetCurrentState(ctx context.Context, priorState *AppSpecModel, currentState
 
 		containerListElements = append(containerListElements, containerObject)
 	}
+	// build container priorState
+	newState.Containers = basetypes.NewListValueMust(types.ObjectType{AttrTypes: containerAttrTypes}, containerListElements)
 
 	if !priorState.DefaultURL.IsNull() && !priorState.DefaultURL.IsUnknown() {
 		var defaultURL DefaultURLModel
@@ -624,9 +588,9 @@ func GetCurrentState(ctx context.Context, priorState *AppSpecModel, currentState
 	} else {
 		newState.DefaultURL = priorState.DefaultURL
 	}
-
-	// build container priorState
-	newState.Containers = basetypes.NewListValueMust(types.ObjectType{AttrTypes: containerAttrTypes}, containerListElements)
+	// Name must be equal as it stand as ID
+	newState.Name = priorState.Name
+	newState.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
 	return newState, diagnostics
 }

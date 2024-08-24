@@ -83,7 +83,7 @@ func TestAccContainerResource(t *testing.T) {
 									name = "",
 								},
 							]
-									
+
 						dns = ["8.8.8.8", "8.8.4.4"]
 						env = {
 							"NGINX_VERSION" = "1.26.2"
@@ -187,7 +187,7 @@ func TestAccContainerResource(t *testing.T) {
 									container = "",
 									name = "",
 								},
-							]	
+							]
 						dns = []
 						env = {
 							"NGINX_VERSION" = "1.26.2"
