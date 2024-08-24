@@ -1,0 +1,1 @@
+data "containers_data_source" "all_containers" {}
