@@ -58,10 +58,10 @@ resource "qnap_container" "bazarr10" {
 
 - `image` (String) The image of the container.
 - `name` (String) The name of the container.
-- `network` (String) The network to connect the container to.
-- `networktype` (String) The type of the network.
+- `network` (String) The network to connect the container to. Examples of network/networktype compinations: default(the NAT network)/bridge, host/default, bridge/ethx (ethx for the ethernet adaptor you are connecting to when selecting bridge).
+- `networktype` (String) The type of the network. Examples of network/networktype compinations: default(the NAT network)/bridge, host/default, bridge/ethx (ethx for the ethernet adaptor you are connecting to when selecting bridge).
 - `removeanonvolumes` (Boolean) Whether to remove anonymous volumes associated with the container.
-- `status` (String) The state of the container (running, stopped). important to note that change in status requires complete recreation of the container - will be updated in the next version.
+- `status` (String) The state of the container (running, stopped).
 - `type` (String) The type of the container.
 
 ### Optional
@@ -74,6 +74,7 @@ resource "qnap_container" "bazarr10" {
 - `entrypoint` (List of String) The entrypoint for the container.
 - `env` (Map of String) The environment variables for the container.
 - `hostname` (String) The hostname of the container.
+- `ipaddress` (String) The ip address assigned to the container incase a networktype bridge is selected.
 - `labels` (Map of String) The labels for the container.
 - `openstdin` (Boolean) Whether to open stdin.
 - `portbindings` (Attributes List) (see [below for nested schema](#nestedatt--portbindings))
@@ -87,6 +88,7 @@ resource "qnap_container" "bazarr10" {
 
 - `id` (String) The ID of the container.
 - `last_updated` (String) The last updated timestamp of the container.
+- `networks` (Attributes List) (see [below for nested schema](#nestedatt--networks))
 
 <a id="nestedatt--cpupin"></a>
 ### Nested Schema for `cpupin`
@@ -112,7 +114,6 @@ Optional:
 Optional:
 
 - `container` (Number) The container port.
-- `containerip` (String) The container IP address.
 - `host` (Number) The host port.
 - `hostip` (String) The host IP address.
 - `protocol` (String) The protocol used for port binding.
@@ -132,9 +133,24 @@ Optional:
 
 Optional:
 
-- `container` (String) The container path for the volume.
+- `container` (String) The container name for the volume.
 - `destination` (String) The destination path for the volume.
-- `name` (String) The name of the volume.
+- `name` (String) The name of the volume when using type volume only.
 - `permission` (String) The permission for the volume.
 - `source` (String) The source path for the volume.
-- `type` (String) The type of the volume.
+- `type` (String) The type of the volume. Only host and volume types are supported. container is not support as it will not be managed properly with terraform
+
+
+<a id="nestedatt--networks"></a>
+### Nested Schema for `networks`
+
+Read-Only:
+
+- `displayname` (String) The display name of the network.
+- `gateway` (String) The gateway of the network.
+- `id` (String) The ID of the network.
+- `ipaddress` (String) The ip address assigned to the network.
+- `isstaticip` (Boolean) Whether the network is static IP.
+- `macaddress` (String) The MAC address of the network.
+- `name` (String) The name of the network.
+- `networktype` (String) The type of the network.

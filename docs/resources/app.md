@@ -34,13 +34,13 @@ resource "qnap_app" "postgresql-test" {
 
 - `cpu_limit` (Number) The CPU limit for the application.
 - `default_url` (Attributes) The default URL for the application. (see [below for nested schema](#nestedatt--default_url))
-- `last_updated` (String) The last updated timestamp of the application.
 - `mem_limit` (Number) The memory limit for the application.
 - `mem_reservation` (Number) The memory reservation for the application.
 
 ### Read-Only
 
 - `containers` (Attributes List) The list of containers in the application. (see [below for nested schema](#nestedatt--containers))
+- `last_updated` (String) The last updated timestamp of the application.
 
 <a id="nestedatt--default_url"></a>
 ### Nested Schema for `default_url`

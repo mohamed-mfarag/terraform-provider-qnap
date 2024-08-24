@@ -10,11 +10,11 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.23.0
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/hashicorp/terraform-plugin-testing v1.10.0
-	github.com/mohamed-mfarag/qnap-client-lib v0.9.1
+	github.com/mohamed-mfarag/qnap-client-lib v0.9.2
 // github.com/hashicorp/terraform-plugin-testing v1.9.0
 )
 
-replace github.com/mohamed-mfarag/qnap-client-lib => ../qnap-client-lib
+//replace github.com/mohamed-mfarag/qnap-client-lib => ../qnap-client-lib
 
 require (
 	github.com/agext/levenshtein v1.2.2 // indirect
